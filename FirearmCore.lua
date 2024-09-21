@@ -112,16 +112,22 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 			ClearToDamage = true
 		else
 			if Settings.NotifyPlayer == true then
-				--Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
+			 Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
 			end
-			ClearToDamage = true
+			ClearToDamage = false
 		end
 	elseif playerPriority == 3 then
 		ClearToDamage = true
-	elseif playerPriority == 2 and targetTeam == "Chaos Insurgency" then
+	end
+
+	if playerPriority == 2 and targetTeam == "Chaos Insurgency" then
 		ClearToDamage = true
 	end
-	
+
+	if playerTeam == "Chaos Insurgency" and (targetPriority == 2 or targetPriority == 3) then
+		ClearToDamage = true
+	end
+
 	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
 		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
 		ClearToDamage = false
@@ -136,6 +142,8 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 
 	return ClearToDamage
 end
+
+
 
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
@@ -273,7 +281,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 			end
 		end
 	end
-	end
+end
 
 
 
