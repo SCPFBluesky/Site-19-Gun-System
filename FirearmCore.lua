@@ -19,7 +19,7 @@ local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
 local Muzzle = game.ReplicatedStorage.Shared.Muzzle
 local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
 local HitEffects = game.ReplicatedStorage.Effects
-local Notify = game.ReplicatedStorage:WaitForChild("NotifyPlayer")
+local Notify = Atlas:GetObject("NotifyPlayer")
 local Debris = game:GetService("Debris")
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -112,16 +112,16 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 			ClearToDamage = true
 		else
 			if Settings.NotifyPlayer == true then
-				Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
+				--Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
 			end
-			ClearToDamage = false
+			ClearToDamage = true
 		end
 	elseif playerPriority == 3 then
 		ClearToDamage = true
 	elseif playerPriority == 2 and targetTeam == "Chaos Insurgency" then
 		ClearToDamage = true
 	end
-
+	
 	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
 		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
 		ClearToDamage = false
@@ -139,9 +139,7 @@ end
 
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
-	for _,v in pairs(player.Character:GetChildren()) do
-		table.insert(CachedBlacklist, v)
-	end
+	table.insert(CachedBlacklist, player.Character)
 	table.insert(CachedBlacklist, gun)     
 	InitializeBlacklist()
 
@@ -160,7 +158,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 		local Range = 900
 		RayParams.FilterDescendantsInstances = CachedBlacklist
 
-		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.8,0.8
+		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.5,0.5
 		local TAU = math.pi * 2
 
 		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
@@ -243,30 +241,39 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 			game.Debris:AddItem(Chamber, 10)
 		end
 
+		local effectsCloned = false 
+
 		if Settings.ShowMuzzleEffects then
-			local EffectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
-			for _, v in pairs(EffectsSource:GetChildren()) do
-				local newEffect = v:Clone()
-				newEffect.Parent = gun.Handle.Muzzle
-				if newEffect:IsA("PointLight") then
-					newEffect.Enabled = true
-					task.wait(0.1)
-					newEffect:Destroy()
-				elseif newEffect:IsA("ParticleEmitter") then
-					if Settings.ShowV1MuzzleEffects then
-						newEffect:Emit()
-					else
-					newEffect:Emit(20)
-					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
+			if not effectsCloned then 
+				local EffectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
+				for _, v in pairs(EffectsSource:GetChildren()) do
+					local newEffect = v:Clone()
+					newEffect.Parent = gun.Handle.Muzzle
+
+					if newEffect:IsA("PointLight") then
+						newEffect.Enabled = true
+						game.Debris:AddItem(newEffect, 0.1)
+					elseif newEffect:IsA("ParticleEmitter") then
+						if Settings.ShowV1MuzzleEffects then
+							newEffect:Emit()
+						else
+							newEffect:Emit(20)
+							game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
+						end
+					end
+
+					for i = #CachedBlacklist, 1, -1 do
+						if CachedBlacklist[i] == player.Character then
+							table.remove(CachedBlacklist, i)
+						end
 					end
 				end
+
+				effectsCloned = true 
 			end
 		end
 	end
-end
-
-
-
+	end
 
 
 
