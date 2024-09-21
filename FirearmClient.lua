@@ -1,0 +1,316 @@
+--[[
+	Writer: @SCPF_RedSky
+	Name : FirearmClient.lua
+	Date : 9/15/24
+	ClassName : LocalScript
+	RunTime: Client
+	Description: 
+	This system replicates the gun system from Site 19, originally created by AdministratorGnar and ThunderGemios10 
+	Please note only Site-19 Verisons 0-3 are only supported
+	If you want this to be like V4 just make a holster script and script firing animations yourself.
+	This is the cleitnside aspect of the gun system, handling user input,
+	attribute creations, mobile, and more.
+--]]
+--!nonstrict
+--!native
+local Atlas = require(game.ReplicatedStorage.Atlas)
+local InputService = game:GetService("UserInputService")
+
+local State = Atlas:GetObject("State")
+
+local Player = game.Players.LocalPlayer
+
+local LowerButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.LowerButton
+
+local FireButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.FireButton
+
+local ReloadButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.ReloadButton
+
+local Mouse = Player:GetMouse()
+
+local CurrentGun = nil
+
+local CurrentFiremode = nil
+
+local IsHolstered = false
+
+local IsReloading = false
+
+local canFire = false
+
+local DEBUG_MODE = false
+
+
+local _warn = warn
+
+local _print = print
+
+local GunAnimations = {}
+
+local GunAmmo = {}
+
+
+
+local function Init(gun)
+
+	if gun.Parent ~= Player.Backpack then return end
+	local SettingsModule = require(gun:WaitForChild("Settings"))
+	local equip, unequip
+
+	if not GunAmmo[gun] then
+		GunAmmo[gun] = SettingsModule.Ammo
+	end
+
+	if gun then
+		gun:SetAttribute("CurrentAmmo", GunAmmo[gun]) 
+		gun:SetAttribute("Ammo", SettingsModule.Ammo) 
+		gun:SetAttribute("Automatic", SettingsModule.Automatic) 
+		gun:SetAttribute("RPM", SettingsModule.RPM)
+		gun:SetAttribute("CanLower", SettingsModule.CanLower)
+		gun:SetAttribute("Damage", SettingsModule.Damage)
+	else
+		warn("gun is nil")
+	end
+	GunAnimations[gun] = {}
+	equip = gun.Equipped:Connect(function()
+		for _, v in pairs(gun:FindFirstChild("Animations"):GetChildren()) do
+			if v:IsA("Animation") then
+				local success, AnimationTrack = pcall(function()
+					if not Player.Character then 
+						Player.CharacterAdded:Wait() 
+					end
+
+					local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+					if not humanoid then
+						humanoid = Player.Character:WaitForChild("Humanoid", 5)  
+					end
+
+					if humanoid then
+						return humanoid:LoadAnimation(v)
+					else
+						error("Humanoid not found in player's character.")
+					end
+				end)
+
+				if success and AnimationTrack then
+					table.insert(GunAnimations[gun], AnimationTrack)
+				else
+					warn("Failed to load animation: " .. tostring(v.Name) .. ". Error: " .. tostring(AnimationTrack))
+				end
+			end
+		end
+		CurrentGun = gun
+		canFire = true
+		print(GunAnimations)
+
+		GunAnimations[CurrentGun][1]:Play(.2) --All : .2
+		if InputService.TouchEnabled then
+			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
+		end
+		if GunAmmo[gun] then
+			gun:SetAttribute("CurrentAmmo", GunAmmo[gun])
+		else
+			GunAmmo[gun] = SettingsModule.Ammo
+		end
+	end)
+
+	unequip = gun.Unequipped:Connect(function()
+		if IsReloading then
+			IsReloading = false
+			canFire = true
+		end
+		if InputService.TouchEnabled then
+			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
+		end	
+		GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
+		CurrentGun = nil
+		canFire = false
+		IsHolstered = false
+		for _, v in GunAnimations[gun] do
+			v:Stop()
+			--GunAnimations[gun] = nil
+		end
+	end)
+end
+
+
+local function Lower(gun)
+
+	if not CurrentGun or CurrentGun.Parent ~= Player.Character or IsReloading == true then
+		return
+	end
+
+	if not CurrentGun:GetAttribute("CanLower") then
+		return 
+	end
+
+	IsHolstered = not IsHolstered 
+	if IsHolstered then
+		canFire = false
+		if GunAnimations[CurrentGun][3] then
+			GunAnimations[CurrentGun][3]:Play() --V2\V1 Speed : 0.3 V3: Blank
+		end
+
+	else
+		canFire = true
+		if GunAnimations[CurrentGun][3] then
+			GunAnimations[CurrentGun][3]:Stop()
+		end
+		if GunAnimations[CurrentGun][1] then
+			GunAnimations[CurrentGun][1]:Play() --V2\V1 Speed : .2 V3: Blank
+		end
+
+	end
+end
+
+
+function Reload(gun)
+	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
+		return
+	end
+	CurrentGun:SetAttribute("CurrentAmmo", 0)
+	IsReloading = true
+	canFire = false
+
+	if GunAnimations[CurrentGun][2] then
+		GunAnimations[CurrentGun][2]:Play(.2)
+		task.wait(GunAnimations[CurrentGun][2].Length)
+		if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character then
+			IsReloading = false
+			return
+		end
+	end
+
+	local currentGunSettings = require(CurrentGun:FindFirstChild("Settings"))
+	if currentGunSettings then
+		GunAmmo[CurrentGun] = currentGunSettings.Ammo
+	else
+		warn("nil")
+	end
+
+	if not CurrentGun then
+		IsReloading = false
+		return
+	end
+
+	CurrentGun:SetAttribute("CurrentAmmo", GunAmmo[CurrentGun])
+
+	if GunAnimations[CurrentGun] and GunAnimations[CurrentGun][1] then
+		GunAnimations[CurrentGun][1]:Play()
+	end
+
+	IsReloading = false
+	canFire = true
+end
+
+local CONST_RANGE = 1000
+local RayParams = RaycastParams.new()
+RayParams.RespectCanCollide = true
+RayParams.FilterType = Enum.RaycastFilterType.Exclude
+RayParams.IgnoreWater = true
+
+local function RealFire(gun)
+	if IsHolstered or not CurrentGun or not canFire or not Player.Character or not Player.Character:FindFirstChild("Humanoid") or Player.Character.Humanoid.Health == 0 or IsReloading then
+		return
+	end
+
+	local CurrentAmmo = gun:GetAttribute("CurrentAmmo")
+	if not CurrentAmmo or CurrentAmmo <= 0 then
+		return
+	end
+	gun:SetAttribute("CurrentAmmo", CurrentAmmo - 1)
+	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
+
+	local mousePos = Mouse.Hit.Position
+	local camera = workspace.CurrentCamera
+	local cameraRay = camera:ScreenPointToRay(Mouse.X, Mouse.Y)
+
+	local aimDirection = cameraRay.Direction
+	local RayParams = RaycastParams.new()
+	RayParams.RespectCanCollide = true
+	RayParams.FilterType = Enum.RaycastFilterType.Exclude
+	RayParams.IgnoreWater = true
+	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera}
+
+	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
+
+	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
+
+	State:FireServer(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"))
+end
+
+
+
+
+InputService.InputBegan:Connect(function(inputobject, gpe)
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.E then
+		Lower(CurrentGun)
+	end
+end)
+
+
+ReloadButton.MouseButton1Click:Connect(function()
+	if CurrentGun and not IsReloading then
+		Reload(CurrentGun)
+	end
+end)
+
+
+LowerButton.MouseButton1Click:Connect(function()
+	if CurrentGun then
+		Lower(CurrentGun)
+	end
+end)
+
+InputService.InputBegan:Connect(function(inputobject, gpe)
+	if not CurrentGun or IsReloading == true then
+		return
+	end
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.R then
+		Reload(CurrentGun)
+	end
+end)
+
+if InputService.TouchEnabled then
+	FireButton.MouseButton1Down:Connect(function()
+		if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
+		RealFire(CurrentGun)
+		local isButtonDown = true
+
+		FireButton.MouseButton1Up:Connect(function()
+			isButtonDown = false
+		end)
+
+		if CurrentGun:GetAttribute("Automatic") then
+			while isButtonDown and canFire and not IsHolstered do
+				RealFire(CurrentGun)
+				task.wait(60 / CurrentGun:GetAttribute("RPM"))
+			end
+		end
+	end)
+end
+
+
+if not InputService.TouchEnabled then
+	local isButtonDown = false
+
+	Mouse.Button1Down:Connect(function()
+		isButtonDown = true
+		if CurrentGun and canFire and not IsHolstered then
+			RealFire(CurrentGun)
+			if CurrentGun:GetAttribute("Automatic") then
+				while isButtonDown and canFire and not IsHolstered do
+					RealFire(CurrentGun)
+					task.wait(60 / CurrentGun:GetAttribute("RPM"))
+				end
+			end
+		end
+	end)
+
+	Mouse.Button1Up:Connect(function() 
+		isButtonDown = false 
+	end)
+end
+
+
+Atlas:BindToTag("Firearm", Init)
