@@ -15,6 +15,7 @@
 --!native
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local State = Atlas:GetObject("State")
+local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
 local Muzzle = game.ReplicatedStorage.Shared.Muzzle
 local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
 local HitEffects = game.ReplicatedStorage.Effects
@@ -33,19 +34,7 @@ RayParams.IgnoreWater = true
 
 local CachedBlacklist = {}
 local Initialized = false
-local DEBUG_MODE = false -- set to true for epic crash
 
-local function warn(...)
-	if DEBUG_MODE then
-		warn(...)
-	end
-end
-
-local function print(...)
-	if DEBUG_MODE then
-		print(...)
-	end
-end
 
 local Settings = {
 	ShowBlood = true, -- Enable Blood?
@@ -56,7 +45,7 @@ local Settings = {
 	ShellMeshID = 95392019, --MeshID of the shell
 	ShellTextureID = 95391833, -- Shell TextureID
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
-	NotifyPlayer = false, -- Notify the player when they failed team check
+	NotifyPlayer = true, -- Notify the player when they failed team check
 	AlwaysDamage = false -- Ignore team check always allows damage
 }
 
@@ -77,13 +66,31 @@ local function InitializeBlacklist()
 	end
 end
 
+local function GetTeamPriority(teamName)
+	for priorityLevel, teams in pairs(TeamPriorityModule) do
+		for _, team in ipairs(teams) do
+			if team == teamName then
+				return tonumber(priorityLevel:match("%d+"))
+			end
+		end
+	end
+	print("Team is nil, did you specifiy the team in the moudle right?")
+	return nil 
+end
+
 local function TeamCheck(PlayerWhoFired, targetPlr, gun)
-	local playerPriority = PlayerWhoFired.Team:GetAttribute("TKPermissions")
-	local targetPriority = targetPlr.Team:GetAttribute("TKPermissions")
+	local playerTeam = PlayerWhoFired.Team.Name
+	local targetTeam = targetPlr.Team.Name
+
+	local playerPriority = GetTeamPriority(playerTeam)
+	local targetPriority = GetTeamPriority(targetTeam)
+
 	local ClearToDamage = false
+
 	if Settings.AlwaysDamage == true and not (PlayerWhoFired == targetPlr) then
 		return true
 	end
+
 	if PlayerWhoFired == targetPlr then
 		return false
 	end
@@ -91,48 +98,45 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	if playerPriority == 1 and targetPriority == 1 then
 		ClearToDamage = false
 		if Settings.NotifyPlayer == true then
-		Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
+			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
 		end
 	elseif playerPriority == 2 then
-		if targetPriority == 3 or targetPriority == 2 then
+		if targetPriority == 2 or targetPriority == 3 then
 			ClearToDamage = false
 			if Settings.NotifyPlayer == true then
-			Notify:FireClient(PlayerWhoFired, "You cannot damage people who also work for the Foundation.")
+				Notify:FireClient(PlayerWhoFired, "You cannot damage people who also work for the Foundation.")
 			end
-		elseif targetPlr.Team == game.Teams["Chaos Insurgency"] then
+		elseif targetTeam == "Chaos Insurgency" then
 			ClearToDamage = true
-		elseif targetPlr.Team == game.Teams["Class D"] and targetPlr.Character:GetAttribute("Guilty") == true then
+		elseif targetTeam == "Class D" and targetPlr.Character:GetAttribute("Guilty") == true then
 			ClearToDamage = true
 		else
 			if Settings.NotifyPlayer == true then
-			Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
-			ClearToDamage = false
+				Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
 			end
+			ClearToDamage = false
 		end
 	elseif playerPriority == 3 then
 		ClearToDamage = true
-	
-	elseif playerPriority == 2 and targetPlr.Team == game.Teams["Chaos Insurgency"] then
+	elseif playerPriority == 2 and targetTeam == "Chaos Insurgency" then
 		ClearToDamage = true
 	end
-	if (PlayerWhoFired.Team == game.Teams["Chaos Insurgency"] and targetPlr.Team == game.Teams["Class D"]) or
-		(PlayerWhoFired.Team == game.Teams["Class D"] and targetPlr.Team == game.Teams["Chaos Insurgency"]) then
+
+	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
+		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
 		ClearToDamage = false
 		if Settings.NotifyPlayer == true then
-		Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
+			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
 		end
 	end
 
 	if targetPlr and targetPlr.Character:GetAttribute("Zombie") == true then
-		--[[
-			if your game has a 008 system you can modify the system to create an boolan attribute in
-			the players charecter using SetAttribute so when the player is 008 it will set it to true
-		]]
 		ClearToDamage = true
 	end
 
 	return ClearToDamage
 end
+
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 	table.insert(CachedBlacklist, player)  
@@ -162,7 +166,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 		local spreadDirection = (directionalCF * 
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) * 
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0) -- Random pitch spread
+			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
 		).LookVector
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
