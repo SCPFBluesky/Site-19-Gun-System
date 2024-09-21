@@ -14,12 +14,12 @@
 --!nonstrict
 --!native
 local Atlas = require(game.ReplicatedStorage.Atlas)
-local State = Atlas:GetObject("State")
+local State = game.ReplicatedStorage:WaitForChild("State")
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
 local Muzzle = game.ReplicatedStorage.Shared.Muzzle
 local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
 local HitEffects = game.ReplicatedStorage.Effects
-local Notify = Atlas:GetObject("NotifyPlayer")
+local Notify = game.ReplicatedStorage:WaitForChild("NotifyPlayer")
 local Debris = game:GetService("Debris")
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -139,13 +139,14 @@ end
 
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
-	table.insert(CachedBlacklist, player)  
+	for _,v in pairs(player.Character:GetChildren()) do
+		table.insert(CachedBlacklist, v)
+	end
 	table.insert(CachedBlacklist, gun)     
 	InitializeBlacklist()
 
 	if player.Character.Humanoid.Health == 0 then return end
 
-	print("Called")
 
 	if arg == "Discharge" then
 		local FireSound = gun.Handle.Fire:Clone()
@@ -166,7 +167,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 		local spreadDirection = (directionalCF * 
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) * 
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
+			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0) -- Random pitch spread
 		).LookVector
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
