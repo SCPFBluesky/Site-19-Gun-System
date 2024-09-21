@@ -101,8 +101,6 @@ local function Init(gun)
 		end
 		CurrentGun = gun
 		canFire = true
-		print(GunAnimations)
-
 		GunAnimations[CurrentGun][1]:Play(.2) --All : .2
 		if InputService.TouchEnabled then
 			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
