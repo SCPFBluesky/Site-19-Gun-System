@@ -1,6 +1,9 @@
-Site 19 Gun System
+# Site 19 Gun System Replica
+
 This gun system was made to replicate the gun system found in "Site-19 Roleplay" made by AdministratorGnar and ThunderGemios10
-This system includes almost all features of the gun system including Mobile support.]]
+
+This system includes almost all features of the gun system including Mobile support
+
 Inside the Settings inside "FireCore" (ServerScript) there are 10 Options you can customise to your liking
 
 ```lua
