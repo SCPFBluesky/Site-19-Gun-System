@@ -10,13 +10,15 @@
 	If you want this to be like V4 just make a holster script and script firing animations yourself.
 	This is the cleitnside aspect of the gun system, handling user input,
 	attribute creations, mobile, and more.
+	--!divine-intellect
 --]]
 --!nonstrict
 --!native
+
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local InputService = game:GetService("UserInputService")
 
-local State = Atlas:GetObject("State")
+local State = game.ReplicatedStorage:WaitForChild("State")
 
 local Player = game.Players.LocalPlayer
 
@@ -49,40 +51,58 @@ local GunAnimations = {}
 
 local GunAmmo = {}
 
-
+local OriginalAttributes = {}
+local IsSystemChanging = {} 
+local function SetSafeAttribute(gun, attributeName, value)
+	IsSystemChanging[gun] = true 
+	gun:SetAttribute(attributeName, value)
+	task.wait()
+	IsSystemChanging[gun] = false 
+end
 
 local function Init(gun)
-
 	if gun.Parent ~= Player.Backpack then return end
+
 	local SettingsModule = require(gun:WaitForChild("Settings"))
 	local equip, unequip
+
+	OriginalAttributes[gun] = {
+		Ammo = SettingsModule.Ammo,
+		Damage = SettingsModule.Damage,
+		RPM = SettingsModule.RPM,
+		Automatic = SettingsModule.Automatic,
+		CanLower = SettingsModule.CanLower
+	}
 
 	if not GunAmmo[gun] then
 		GunAmmo[gun] = SettingsModule.Ammo
 	end
 
+	IsSystemChanging[gun] = false
+
 	if gun then
-		gun:SetAttribute("CurrentAmmo", GunAmmo[gun]) 
-		gun:SetAttribute("Ammo", SettingsModule.Ammo) 
-		gun:SetAttribute("Automatic", SettingsModule.Automatic) 
-		gun:SetAttribute("RPM", SettingsModule.RPM)
-		gun:SetAttribute("CanLower", SettingsModule.CanLower)
-		gun:SetAttribute("Damage", SettingsModule.Damage)
+		SetSafeAttribute(gun, "CurrentAmmo", GunAmmo[gun])
+		SetSafeAttribute(gun, "Ammo", SettingsModule.Ammo)
+		SetSafeAttribute(gun, "Automatic", SettingsModule.Automatic)
+		SetSafeAttribute(gun, "RPM", SettingsModule.RPM)
+		SetSafeAttribute(gun, "CanLower", SettingsModule.CanLower)
+		SetSafeAttribute(gun, "Damage", SettingsModule.Damage)
 	else
 		warn("gun is nil")
 	end
+
 	GunAnimations[gun] = {}
 	equip = gun.Equipped:Connect(function()
 		for _, v in pairs(gun:FindFirstChild("Animations"):GetChildren()) do
 			if v:IsA("Animation") then
 				local success, AnimationTrack = pcall(function()
-					if not Player.Character then 
-						Player.CharacterAdded:Wait() 
+					if not Player.Character then
+						Player.CharacterAdded:Wait()
 					end
 
 					local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
 					if not humanoid then
-						humanoid = Player.Character:WaitForChild("Humanoid", 5)  
+						humanoid = Player.Character:WaitForChild("Humanoid", 5)
 					end
 
 					if humanoid then
@@ -99,17 +119,19 @@ local function Init(gun)
 				end
 			end
 		end
+
 		CurrentGun = gun
 		canFire = true
-		GunAnimations[CurrentGun][1]:Play(.2) --All : .2
+
+		if GunAnimations[CurrentGun][1] then
+			GunAnimations[CurrentGun][1]:Play(0.2)
+		end
+
 		if InputService.TouchEnabled then
 			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
 		end
-		if GunAmmo[gun] then
-			gun:SetAttribute("CurrentAmmo", GunAmmo[gun])
-		else
-			GunAmmo[gun] = SettingsModule.Ammo
-		end
+
+		gun:SetAttribute("CurrentAmmo", GunAmmo[gun])
 	end)
 
 	unequip = gun.Unequipped:Connect(function()
@@ -117,16 +139,36 @@ local function Init(gun)
 			IsReloading = false
 			canFire = true
 		end
+
 		if InputService.TouchEnabled then
 			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
-		end	
+		end
+
 		GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 		CurrentGun = nil
 		canFire = false
 		IsHolstered = false
+
 		for _, v in GunAnimations[gun] do
 			v:Stop()
-			--GunAnimations[gun] = nil
+		end
+	end)
+
+	gun.AttributeChanged:Connect(function(attribute)
+		if not IsSystemChanging[gun] then
+			if attribute == "CurrentAmmo" and gun:GetAttribute("CurrentAmmo") ~= OriginalAttributes[gun].Ammo then
+				Player:Kick("Attempted to exploit by modifying gun attributes (CurrentAmmo).")
+			elseif attribute == "Damage" and gun:GetAttribute("Damage") ~= OriginalAttributes[gun].Damage then
+				Player:Kick("Attempted to exploit by modifying gun attributes (Damage).")
+			elseif attribute == "RPM" and gun:GetAttribute("RPM") ~= OriginalAttributes[gun].RPM then
+				Player:Kick("Attempted to exploit by modifying gun attributes (RPM).")
+			elseif attribute == "Automatic" and gun:GetAttribute("Automatic") ~= OriginalAttributes[gun].Automatic then
+				Player:Kick("Attempted to exploit by modifying gun attributes (Automatic).")
+			elseif attribute == "CanLower" and gun:GetAttribute("CanLower") ~= OriginalAttributes[gun].CanLower then
+				Player:Kick("Attempted to exploit by modifying gun attributes (CanLower).")
+			else
+				Player:Kick("Attempted to exploit by modifying gun attributes.")
+			end
 		end
 	end)
 end
@@ -163,10 +205,14 @@ end
 
 
 function Reload(gun)
+	local currentGunSettings = require(CurrentGun:FindFirstChild("Settings"))
 	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
 		return
 	end
-	CurrentGun:SetAttribute("CurrentAmmo", 0)
+	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
+		return
+	end
+	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
 	IsReloading = true
 	canFire = false
 
@@ -185,13 +231,13 @@ function Reload(gun)
 	else
 		warn("nil")
 	end
-
+	
 	if not CurrentGun then
 		IsReloading = false
 		return
 	end
 
-	CurrentGun:SetAttribute("CurrentAmmo", GunAmmo[CurrentGun])
+	SetSafeAttribute(CurrentGun, "CurrentAmmo", GunAmmo[CurrentGun])
 
 	if GunAnimations[CurrentGun] and GunAnimations[CurrentGun][1] then
 		GunAnimations[CurrentGun][1]:Play()
@@ -216,7 +262,8 @@ local function RealFire(gun)
 	if not CurrentAmmo or CurrentAmmo <= 0 then
 		return
 	end
-	gun:SetAttribute("CurrentAmmo", CurrentAmmo - 1)
+	SetSafeAttribute(gun, "CurrentAmmo",CurrentAmmo - 1)
+	--gun:SetAttribute("CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
 	local mousePos = Mouse.Hit.Position
