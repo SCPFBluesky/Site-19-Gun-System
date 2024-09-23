@@ -53,18 +53,22 @@ local Settings = {
 local function InitializeBlacklist()
 	if not Initialized then
 		CachedBlacklist = {}
-
 		for _, v in pairs(game.Workspace:GetDescendants()) do
-			if v:IsA("BasePart") and (v.Transparency == 1) then
-				table.insert(CachedBlacklist, v)
-			elseif v:HasTag("RayIgnore") then
+			if v:IsA("BasePart") and v.Transparency == 1 or CollectionService:HasTag(v, "RayIgnore") then
 				table.insert(CachedBlacklist, v)
 			end
 		end
-
-		
 		Initialized = true
 	end
+end
+
+local function AddToBlacklist(item)
+	for _, blacklistedItem in pairs(CachedBlacklist) do
+		if blacklistedItem == item then
+			return 
+		end
+	end
+	table.insert(CachedBlacklist, item)
 end
 
 local function GetTeamPriority(teamName)
@@ -153,13 +157,11 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 end
 
 
-
-
-local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
-	table.insert(CachedBlacklist, player.Character)
-	table.insert(CachedBlacklist, gun)     
+local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)  
+	AddToBlacklist(gun)
+	AddToBlacklist(player.Character)
 	InitializeBlacklist()
-
+	warn(CachedBlacklist)
 	if player.Character.Humanoid.Health == 0 then return end
 
 
@@ -182,7 +184,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 		local spreadDirection = (directionalCF * 
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) * 
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0) -- Random pitch spread
+			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
 		).LookVector
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
@@ -276,12 +278,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 						else
 							newEffect:Emit(20)
 							game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
-						end
-					end
-
-					for i = #CachedBlacklist, 1, -1 do
-						if CachedBlacklist[i] == player.Character then
-							table.remove(CachedBlacklist, i)
 						end
 					end
 				end
