@@ -13,6 +13,7 @@
 --]]
 --!nonstrict
 --!native
+--!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local State = game.ReplicatedStorage:WaitForChild("State")
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
@@ -28,7 +29,6 @@ local TAU = math.pi * 2
 local RNG = Random.new()
 
 local RayParams = RaycastParams.new()
-RayParams.RespectCanCollide = true
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
 
