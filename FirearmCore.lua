@@ -75,7 +75,20 @@ local function AddToBlacklist(item)
 	end
 	table.insert(CachedBlacklist, item)
 end
-
+game.Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(char)
+		for _, v in pairs(char:GetDescendants()) do
+			if v:IsA("Accessory") then
+				CollectionService:AddTag(v, "RayIgnore")
+			end
+		end
+		char.DescendantAdded:Connect(function(descendant)
+			if descendant:IsA("Accessory") then
+				CollectionService:AddTag(descendant, "RayIgnore")
+			end
+		end)
+	end)
+end)
 local function GetTeamPriority(teamName)
 	for priorityLevel, teams in pairs(TeamPriorityModule) do
 		for _, team in ipairs(teams) do
@@ -169,6 +182,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 
 	if arg == "Discharge" then
+		--warn(CachedBlacklist)
 		local FireSound = gun.Handle.Fire:Clone()
 		FireSound.Parent = gun.Handle
 		FireSound.TimePosition = 0
@@ -192,7 +206,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
 
-		
+
 
 		if raycastResult and raycastResult.Position then
 			local Attach = HitEffects.Effects:Clone()
