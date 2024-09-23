@@ -46,7 +46,8 @@ local Settings = {
 	ShellTextureID = 95391833, -- Shell TextureID
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
 	NotifyPlayer = true, -- Notify the player when they failed team check
-	AlwaysDamage = false -- Ignore team check always allows damage
+	AlwaysDamage = false, -- Ignore team check always allows damage
+	EnableGuiltySystem = true -- Enable \ disable class g guilty check
 }
 
 local function InitializeBlacklist()
@@ -108,13 +109,21 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 			end
 		elseif targetTeam == "Chaos Insurgency" then
 			ClearToDamage = true
-		elseif targetTeam == "Class D" and targetPlr.Character:GetAttribute("Guilty") == true then
-			ClearToDamage = true
-		else
-			if Settings.NotifyPlayer == true then
-			 Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
+		end
+
+		if targetTeam == "Class D" then
+			if Settings.EnableGuiltySystem == true then
+				if targetPlr.Character:GetAttribute("Guilty") == true then
+					ClearToDamage = true
+				else
+					if Settings.NotifyPlayer == true then
+						Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
+					end
+					ClearToDamage = false
+				end
+			else
+				ClearToDamage = true
 			end
-			ClearToDamage = false
 		end
 	elseif playerPriority == 3 then
 		ClearToDamage = true
