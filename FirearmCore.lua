@@ -53,6 +53,11 @@ local Settings = {
 local function InitializeBlacklist()
 	if not Initialized then
 		CachedBlacklist = {}
+		for _,v  in pairs(game.Workspace:GetDescendants()) do
+			if v:IsA("Accessory") then
+				table.insert(CachedBlacklist, v)
+			end
+		end
 		for _, v in pairs(game.Workspace:GetDescendants()) do
 			if v:IsA("BasePart") and v.Transparency == 1 or CollectionService:HasTag(v, "RayIgnore") then
 				table.insert(CachedBlacklist, v)
@@ -161,7 +166,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 	AddToBlacklist(gun)
 	AddToBlacklist(player.Character)
 	InitializeBlacklist()
-	warn(CachedBlacklist)
 	if player.Character.Humanoid.Health == 0 then return end
 
 
@@ -184,7 +188,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 
 		local spreadDirection = (directionalCF * 
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) * 
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
+			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0) -- Random pitch spread
 		).LookVector
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
@@ -230,7 +234,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 			Weld.Part0 = gun.Handle
 			Weld.Part1 = Chamber
 			Weld.C0 = CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)
-			warn(Weld.C0)
 			Chamber.Position = ShellPos
 			Chamber.Parent = workspace.CurrentCamera
 
@@ -247,7 +250,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 				Shell.Parent = workspace
 
 				local shellmesh = Instance.new("SpecialMesh")
-				warn(Shell.Position)
 				shellmesh.Scale = Vector3.new(2, 2, 2)
 				shellmesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
 				shellmesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
