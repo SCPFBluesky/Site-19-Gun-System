@@ -164,7 +164,6 @@ end
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)  
 	AddToBlacklist(gun)
-	AddToBlacklist(player.Character)
 	InitializeBlacklist()
 	if player.Character.Humanoid.Health == 0 then return end
 
