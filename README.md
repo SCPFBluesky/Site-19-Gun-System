@@ -23,3 +23,40 @@ local Settings = {
 ```
 
 # Note this gun system, uses Atlas framework automaticlly packaged in the release https://github.com/SCPFBluesky/Atlas-Framework
+
+# In order to add custom items to Class D Guilty system go into the script calle "Guilty" in ServerScriptService and add your item names their
+
+```lua
+local itemlist = {
+	"Ballistic Shield",
+	"Glock 22",
+	"HK416s",
+	"Honey Badger",
+	"Intervention",
+	"Kriss Vector",
+	"M249",
+	"MP5-SD",
+	"P90",
+	"P90s",
+	"Special M249"
+}
+```
+# For example if I wanted to add a keycard to the list I would do it like this
+
+```lua
+local itemlist = {
+	"Ballistic Shield",
+	"Glock 22",
+	"HK416s",
+	"Honey Badger",
+	"Intervention",
+	"Kriss Vector",
+	"M249",
+	"MP5-SD",
+	"P90",
+	"P90s",
+	"Special M249",
+	"Level-3"
+}
+```
+# When adding items don't forget to add the , at the previous item.
