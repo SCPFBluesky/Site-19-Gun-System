@@ -24,7 +24,7 @@ local Settings = {
 
 # Note this gun system, uses Atlas framework automaticlly packaged in the release https://github.com/SCPFBluesky/Atlas-Framework
 
-# In order to add custom items to Class D Guilty system go into the script calle "Guilty" in ServerScriptService and add your item names their
+# In order to add custom items to Class D Guilty system go into the script calle "Guilty" in ServerScriptService and add your item names there
 
 ```lua
 local itemlist = {
