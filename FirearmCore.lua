@@ -53,7 +53,7 @@ local Settings = {
 local function InitializeBlacklist()
 	if not Initialized then
 		CachedBlacklist = {}
-		for _,v  in pairs(game.Workspace:GetDescendants()) do
+		for _,v  in pairs(game:GetDescendants()) do
 			if v:IsA("Accessory") then
 				table.insert(CachedBlacklist, v)
 			end
