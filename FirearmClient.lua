@@ -90,6 +90,7 @@ local function Init(gun)
 	else
 		warn("gun is nil")
 	end
+	
 
 	GunAnimations[gun] = {}
 	equip = gun.Equipped:Connect(function()
@@ -231,7 +232,7 @@ function Reload(gun)
 	else
 		warn("nil")
 	end
-	
+
 	if not CurrentGun then
 		IsReloading = false
 		return
@@ -253,6 +254,7 @@ RayParams.RespectCanCollide = true
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
 
+
 local function RealFire(gun)
 	if IsHolstered or not CurrentGun or not canFire or not Player.Character or not Player.Character:FindFirstChild("Humanoid") or Player.Character.Humanoid.Health == 0 or IsReloading then
 		return
@@ -263,7 +265,6 @@ local function RealFire(gun)
 		return
 	end
 	SetSafeAttribute(gun, "CurrentAmmo",CurrentAmmo - 1)
-	--gun:SetAttribute("CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
 	local mousePos = Mouse.Hit.Position
@@ -271,17 +272,13 @@ local function RealFire(gun)
 	local cameraRay = camera:ScreenPointToRay(Mouse.X, Mouse.Y)
 
 	local aimDirection = cameraRay.Direction
-	local RayParams = RaycastParams.new()
-	RayParams.RespectCanCollide = true
-	RayParams.FilterType = Enum.RaycastFilterType.Exclude
-	RayParams.IgnoreWater = true
 	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera}
 
 	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
 
 	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
-
-	State:FireServer(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"))
+	task.wait()
+	State:FireServer(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
 end
 
 
@@ -316,7 +313,6 @@ InputService.InputBegan:Connect(function(inputobject, gpe)
 	end
 end)
 
-if InputService.TouchEnabled then
 	FireButton.MouseButton1Down:Connect(function()
 		if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
 		RealFire(CurrentGun)
@@ -329,24 +325,23 @@ if InputService.TouchEnabled then
 		if CurrentGun:GetAttribute("Automatic") then
 			while isButtonDown and canFire and not IsHolstered do
 				RealFire(CurrentGun)
-				task.wait(60 / CurrentGun:GetAttribute("RPM"))
+				wait(60 / CurrentGun:GetAttribute("RPM"))
+				--task.wait(60 / CurrentGun:GetAttribute("RPM"))
 			end
 		end
 	end)
-end
 
 
-if not InputService.TouchEnabled then
-	local isButtonDown = false
+local isButtonDown = false
 
-	Mouse.Button1Down:Connect(function()
+Mouse.Button1Down:Connect(function()
 		isButtonDown = true
 		if CurrentGun and canFire and not IsHolstered then
 			RealFire(CurrentGun)
 			if CurrentGun:GetAttribute("Automatic") then
 				while isButtonDown and canFire and not IsHolstered do
 					RealFire(CurrentGun)
-					task.wait(60 / CurrentGun:GetAttribute("RPM"))
+					wait(CurrentGun:GetAttribute("RPM"))
 				end
 			end
 		end
@@ -354,8 +349,7 @@ if not InputService.TouchEnabled then
 
 	Mouse.Button1Up:Connect(function() 
 		isButtonDown = false 
-	end)
-end
+end)
 
 
 Atlas:BindToTag("Firearm", Init)
