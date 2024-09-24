@@ -39,7 +39,7 @@ local Settings = {
 	ShowBlood = true, -- Enable Blood?
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
-	ShellEjection = false, -- Eject shells?
+	ShellEjection = true, -- Eject shells?
 	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
 	ShellMeshID = 95392019, --MeshID of the shell
 	ShellTextureID = 95391833, -- Shell TextureID
@@ -231,21 +231,48 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			end
 		end
 
-		if Settings.ShellEjection then
-			local Shell = gun.Handle:FindFirstChild("Shell") or Instance.new("Part")
-			Shell.Name = "Shell"
-			Shell.Size = Vector3.new(0.2, 0.2, 0.32)
-			Shell.CanCollide = true
-			Shell.Parent = workspace
-			Shell.CFrame = gun.Handle.ShellEjectPoint.CFrame * CFrame.fromEulerAnglesXYZ(-2.5, 1, 1)
-			Shell.Velocity = Shell.CFrame.LookVector * 20 + Vector3.new(math.random(-10, 10), 20, math.random(-10, 10))
+		if Settings.ShellEjection == true then
+			local ShellPos = (gun.Handle.ShellEjectPoint.CFrame *
+				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
+			local Chamber = Instance.new("Part")
+			Chamber.Name = "Chamber"
+			Chamber.Size = Vector3.new(0.01, 0.01, 0.01)
+			Chamber.Transparency = 1
+			Chamber.Anchored = false
+			Chamber.CanCollide = false
+			Chamber.TopSurface = Enum.SurfaceType.SmoothNoOutlines
+			Chamber.BottomSurface = Enum.SurfaceType.SmoothNoOutlines
+			local Weld = Instance.new("Weld", Chamber)
+			Weld.Part0 = gun.Handle
+			Weld.Part1 = Chamber
+			Weld.C0 = CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)
+			Chamber.Position = ShellPos
+			Chamber.Parent = workspace.CurrentCamera
 
-			local shellMesh = Shell:FindFirstChild("Mesh") or Instance.new("SpecialMesh", Shell)
-			shellMesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
-			shellMesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
+			local function spawner()
+				local Shell = Instance.new("Part")
+				Shell.CFrame = Chamber.CFrame * CFrame.fromEulerAnglesXYZ(-2.5, 1, 1)
+				Shell.Size = Vector3.new(0.2, 0.2, 0.32)
+				Shell.CanCollide = true
+				Shell.Name = "Shell"
+				Atlas:TagObject(Shell, "RayIgnore")
+				Shell.Velocity = Chamber.CFrame.lookVector * 20 + Vector3.new(math.random(-10, 10), 20, math.random(-10, 10))
+				Shell.RotVelocity = Vector3.new(0, 200, 0)
+				Shell.Parent = workspace
 
-			game:GetService("Debris"):AddItem(Shell, Settings.DisappearTime)
+				local shellmesh = Instance.new("SpecialMesh")
+				shellmesh.Scale = Vector3.new(2, 2, 2)
+				shellmesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
+				shellmesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
+				shellmesh.MeshType = Enum.MeshType.FileMesh
+				shellmesh.Parent = Shell
+
+				game:GetService("Debris"):addItem(Shell, Settings.DisappearTime)
+			end
+			spawn(spawner)
+			game.Debris:AddItem(Chamber, 10)
 		end
+
 
 		local showMuzzleEffects = Settings.ShowMuzzleEffects
 		local effectsCloned = false
