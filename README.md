@@ -23,7 +23,7 @@ local Settings = {
 ```
 
 # Note this gun system, uses Atlas framework automaticlly packaged in the release https://github.com/SCPFBluesky/Atlas-Framework
-
+# Update : The gun system now also uses BridgeNet  : https://devforum.roblox.com/t/bridgenet-insanely-optimized-easy-to-use-networking-library-full-of-utilities-now-with-roblox-ts-v199-beta/1909935
 # In order to add custom items to Class D Guilty system go into the script calle "Guilty" in ServerScriptService and add your item names there
 
 ```lua
