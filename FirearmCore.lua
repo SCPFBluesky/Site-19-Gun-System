@@ -13,7 +13,6 @@
 --]]
 --!nonstrict
 --!native
---!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local State = game.ReplicatedStorage:WaitForChild("State")
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
@@ -31,8 +30,7 @@ local RNG = Random.new()
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
-
-local CachedBlacklist = {}
+CachedBlacklist = {}
 local Initialized = false
 
 
@@ -47,34 +45,33 @@ local Settings = {
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
 	NotifyPlayer = true, -- Notify the player when they failed team check
 	AlwaysDamage = false, -- Ignore team check always allows damage
-	EnableGuiltySystem = true -- Enable \ disable class g guilty check
+	EnableGuiltySystem = false -- Enable \ disable class g guilty check
 }
 
 local function InitializeBlacklist()
-	if not Initialized then
-		CachedBlacklist = {}
+	for _,v in pairs(game.Workspace:GetDescendants()) do
+		if v:IsA("Instance") then
+			if v:HasTag("RayIgnore") and not table.find(CachedBlacklist, v) then
+			--	warn(v)
+				--warn(CachedBlacklist)
+				table.insert(CachedBlacklist ,v)
+			end
+		end
+	end
 		for _,v  in pairs(game:GetDescendants()) do
-			if v:IsA("Accessory") then
+			if v:IsA("Accessory") and not table.find(CachedBlacklist, v) then
+				--warn(v.Name)
 				table.insert(CachedBlacklist, v)
 			end
 		end
 		for _, v in pairs(game.Workspace:GetDescendants()) do
-			if v:IsA("BasePart") and v.Transparency == 1 or CollectionService:HasTag(v, "RayIgnore") then
+			if v:IsA("BasePart") and v.Transparency == 1 and not table.find(CachedBlacklist, v)then
 				table.insert(CachedBlacklist, v)
 			end
 		end
-		Initialized = true
 	end
-end
 
-local function AddToBlacklist(item)
-	for _, blacklistedItem in pairs(CachedBlacklist) do
-		if blacklistedItem == item then
-			return 
-		end
-	end
-	table.insert(CachedBlacklist, item)
-end
+
 game.Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function(char)
 		for _, v in pairs(char:GetDescendants()) do
@@ -175,52 +172,54 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 end
 
 
-local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)  
-	AddToBlacklist(gun)
+local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
+
+	if not table.find(CachedBlacklist, char) then
+		table.insert(CachedBlacklist, char)
+	end
+
+	Initialized = true
 	InitializeBlacklist()
+
 	if player.Character.Humanoid.Health == 0 then return end
 
-
 	if arg == "Discharge" then
-		--warn(CachedBlacklist)
-		local FireSound = gun.Handle.Fire:Clone()
+		local FireSound = gun.Handle:FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
 		FireSound.Parent = gun.Handle
 		FireSound.TimePosition = 0
 		FireSound:Play()
+
 		FireSound.Ended:Connect(function()
 			FireSound:Destroy()
 		end)
 
 		local Range = 900
 		RayParams.FilterDescendantsInstances = CachedBlacklist
-
-		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.5,0.5
 		local TAU = math.pi * 2
+		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.5, 0.5
 
 		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
-
-		local spreadDirection = (directionalCF * 
-			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) * 
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0) -- Random pitch spread
+		local spreadDirection = (directionalCF *
+			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) *
+			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
 		).LookVector
 
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
 
-
-
 		if raycastResult and raycastResult.Position then
 			local Attach = HitEffects.Effects:Clone()
-			Attach.Parent = game.Workspace.Terrain
+			Attach.Parent = workspace.Terrain
 			Attach.CFrame = CFrame.new(raycastResult.Position, raycastResult.Position + raycastResult.Normal)
 
 			local hitInstance = raycastResult.Instance
-			if hitInstance.Parent:FindFirstChild("Humanoid") then
+			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
+
+			if hitHumanoid then
 				Attach.Hit:Play()
-				local Humanoid = hitInstance.Parent.Humanoid
-				local targetPlr = Players:GetPlayerFromCharacter(Humanoid.Parent)
+				local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
 
 				if not targetPlr or TeamCheck(player, targetPlr, gun) then
-					Humanoid:TakeDamage(dmg)
+					hitHumanoid:TakeDamage(dmg)
 				end
 
 				if Settings.ShowBlood and targetPlr ~= player then
@@ -229,75 +228,48 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg)
 			else
 				Attach.Flash:Emit(20)
 				Attach.Smoke:Emit(20)
+				game.Debris:addItem(Attach, Attach.Smoke.Lifetime.Max+0.1)
 			end
 		end
 
-		if Settings.ShellEjection == true then
-			local ShellPos = (gun.Handle.ShellEjectPoint.CFrame *
-				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
-			local Chamber = Instance.new("Part")
-			Chamber.Name = "Chamber"
-			Chamber.Size = Vector3.new(0.01, 0.01, 0.01)
-			Chamber.Transparency = 1
-			Chamber.Anchored = false
-			Chamber.CanCollide = false
-			Chamber.TopSurface = Enum.SurfaceType.SmoothNoOutlines
-			Chamber.BottomSurface = Enum.SurfaceType.SmoothNoOutlines
-			local Weld = Instance.new("Weld", Chamber)
-			Weld.Part0 = gun.Handle
-			Weld.Part1 = Chamber
-			Weld.C0 = CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)
-			Chamber.Position = ShellPos
-			Chamber.Parent = workspace.CurrentCamera
+		if Settings.ShellEjection then
+			local Shell = gun.Handle:FindFirstChild("Shell") or Instance.new("Part")
+			Shell.Name = "Shell"
+			Shell.Size = Vector3.new(0.2, 0.2, 0.32)
+			Shell.CanCollide = true
+			Shell.Parent = workspace
+			Shell.CFrame = gun.Handle.ShellEjectPoint.CFrame * CFrame.fromEulerAnglesXYZ(-2.5, 1, 1)
+			Shell.Velocity = Shell.CFrame.LookVector * 20 + Vector3.new(math.random(-10, 10), 20, math.random(-10, 10))
 
-			local function spawner()
-				print("yes called hi.")
-				local Shell = Instance.new("Part")
-				Shell.CFrame = Chamber.CFrame * CFrame.fromEulerAnglesXYZ(-2.5, 1, 1)
-				Shell.Size = Vector3.new(0.2, 0.2, 0.32)
-				Shell.CanCollide = true
-				Shell.Name = "Shell"
-				Atlas:TagObject(Shell, "RayIgnore")
-				Shell.Velocity = Chamber.CFrame.lookVector * 20 + Vector3.new(math.random(-10, 10), 20, math.random(-10, 10))
-				Shell.RotVelocity = Vector3.new(0, 200, 0)
-				Shell.Parent = workspace
+			local shellMesh = Shell:FindFirstChild("Mesh") or Instance.new("SpecialMesh", Shell)
+			shellMesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
+			shellMesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
 
-				local shellmesh = Instance.new("SpecialMesh")
-				shellmesh.Scale = Vector3.new(2, 2, 2)
-				shellmesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
-				shellmesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
-				shellmesh.MeshType = Enum.MeshType.FileMesh
-				shellmesh.Parent = Shell
-
-				game:GetService("Debris"):addItem(Shell, Settings.DisappearTime)
-			end
-			spawn(spawner)
-			game.Debris:AddItem(Chamber, 10)
+			game:GetService("Debris"):AddItem(Shell, Settings.DisappearTime)
 		end
 
-		local effectsCloned = false 
+		local showMuzzleEffects = Settings.ShowMuzzleEffects
+		local effectsCloned = false
+		if showMuzzleEffects and not effectsCloned then
+			local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
+			for _, v in pairs(effectsSource:GetChildren()) do
+				local newEffect = v:Clone()
+				newEffect.Parent = gun.Handle.Muzzle
 
-		if Settings.ShowMuzzleEffects then
-			if not effectsCloned then 
-				local EffectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
-				for _, v in pairs(EffectsSource:GetChildren()) do
-					local newEffect = v:Clone()
-					newEffect.Parent = gun.Handle.Muzzle
-
-					if newEffect:IsA("PointLight") then
-						newEffect.Enabled = true
-						game.Debris:AddItem(newEffect, 0.1)
-					elseif newEffect:IsA("ParticleEmitter") then
-						if Settings.ShowV1MuzzleEffects then
-							newEffect:Emit()
-						else
-							newEffect:Emit(20)
-							game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
-						end
-					end
+				if newEffect:IsA("PointLight") then
+					newEffect.Enabled = true
+					game.Debris:AddItem(newEffect, 0.1)
+				elseif newEffect:IsA("ParticleEmitter") then
+					newEffect:Emit(20)
+					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
 				end
+			end
+			effectsCloned = true
+		end
 
-				effectsCloned = true 
+		for i = #CachedBlacklist, 1, -1 do
+			if CachedBlacklist[i] == player.Character then
+				table.remove(CachedBlacklist, i)
 			end
 		end
 	end
