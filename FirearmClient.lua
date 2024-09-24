@@ -10,11 +10,10 @@
 	If you want this to be like V4 just make a holster script and script firing animations yourself.
 	This is the cleitnside aspect of the gun system, handling user input,
 	attribute creations, mobile, and more.
-	--!divine-intellect
 --]]
 --!nonstrict
 --!native
-
+--!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local InputService = game:GetService("UserInputService")
 
@@ -90,7 +89,7 @@ local function Init(gun)
 	else
 		warn("gun is nil")
 	end
-	
+
 
 	GunAnimations[gun] = {}
 	equip = gun.Equipped:Connect(function()
@@ -277,7 +276,6 @@ local function RealFire(gun)
 	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
 
 	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
-	task.wait()
 	State:FireServer(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
 end
 
@@ -313,42 +311,41 @@ InputService.InputBegan:Connect(function(inputobject, gpe)
 	end
 end)
 
-	FireButton.MouseButton1Down:Connect(function()
-		if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
-		RealFire(CurrentGun)
-		local isButtonDown = true
+FireButton.MouseButton1Down:Connect(function()
+	if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
+	RealFire(CurrentGun)
+	local isButtonDown = true
 
-		FireButton.MouseButton1Up:Connect(function()
-			isButtonDown = false
-		end)
-
-		if CurrentGun:GetAttribute("Automatic") then
-			while isButtonDown and canFire and not IsHolstered do
-				RealFire(CurrentGun)
-				wait(60 / CurrentGun:GetAttribute("RPM"))
-				--task.wait(60 / CurrentGun:GetAttribute("RPM"))
-			end
-		end
+	FireButton.MouseButton1Up:Connect(function()
+		isButtonDown = false
 	end)
+
+	if CurrentGun:GetAttribute("Automatic") then
+		while isButtonDown and canFire and not IsHolstered do
+			RealFire(CurrentGun)
+			wait(CurrentGun:GetAttribute("RPM"))
+		end
+	end
+end)
 
 
 local isButtonDown = false
 
 Mouse.Button1Down:Connect(function()
-		isButtonDown = true
-		if CurrentGun and canFire and not IsHolstered then
-			RealFire(CurrentGun)
-			if CurrentGun:GetAttribute("Automatic") then
-				while isButtonDown and canFire and not IsHolstered do
-					RealFire(CurrentGun)
-					wait(CurrentGun:GetAttribute("RPM"))
-				end
+	isButtonDown = true
+	if CurrentGun and canFire and not IsHolstered then
+		RealFire(CurrentGun)
+		if CurrentGun:GetAttribute("Automatic") then
+			while isButtonDown and canFire and not IsHolstered do
+				RealFire(CurrentGun)
+				wait(CurrentGun:GetAttribute("RPM"))
 			end
 		end
-	end)
+	end
+end)
 
-	Mouse.Button1Up:Connect(function() 
-		isButtonDown = false 
+Mouse.Button1Up:Connect(function() 
+	isButtonDown = false 
 end)
 
 
