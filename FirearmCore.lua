@@ -15,7 +15,8 @@
 --!native
 --!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
-local State = game.ReplicatedStorage:WaitForChild("State")
+local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
+local State = BridgeNet.CreateBridge("ToolState")
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
 local Muzzle = game.ReplicatedStorage.Shared.Muzzle
 local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
@@ -39,14 +40,14 @@ local Settings = {
 	ShowBlood = true, -- Enable Blood?
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
-	ShellEjection = true, -- Eject shells?
+	ShellEjection = false, -- Eject shells?
 	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
 	ShellMeshID = 95392019, --MeshID of the shell
 	ShellTextureID = 95391833, -- Shell TextureID
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
 	NotifyPlayer = true, -- Notify the player when they failed team check
 	AlwaysDamage = false, -- Ignore team check always allows damage
-	EnableGuiltySystem = false -- Enable \ disable class g guilty check
+	EnableGuiltySystem = true -- Enable \ disable class g guilty check
 }
 
 local function InitializeBlacklist()
@@ -303,4 +304,4 @@ end
 
 
 
-State.OnServerEvent:Connect(Fire)
+State:Connect(Fire)
