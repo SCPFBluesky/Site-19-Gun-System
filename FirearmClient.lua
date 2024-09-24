@@ -15,9 +15,12 @@
 --!native
 --!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
+
 local InputService = game:GetService("UserInputService")
 
-local State = game.ReplicatedStorage:WaitForChild("State")
+local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
+
+local State = BridgeNet.CreateBridge("ToolState")
 
 local Player = game.Players.LocalPlayer
 
@@ -276,7 +279,7 @@ local function RealFire(gun)
 	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
 
 	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
-	State:FireServer(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
+	State:Fire(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
 end
 
 
