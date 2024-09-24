@@ -13,6 +13,7 @@
 --]]
 --!nonstrict
 --!native
+--!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
 local State = game.ReplicatedStorage:WaitForChild("State")
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
@@ -49,27 +50,29 @@ local Settings = {
 }
 
 local function InitializeBlacklist()
+	if Initialized == false then
 	for _,v in pairs(game.Workspace:GetDescendants()) do
 		if v:IsA("Instance") then
 			if v:HasTag("RayIgnore") and not table.find(CachedBlacklist, v) then
-			--	warn(v)
+				--	warn(v)
 				--warn(CachedBlacklist)
 				table.insert(CachedBlacklist ,v)
 			end
 		end
 	end
-		for _,v  in pairs(game:GetDescendants()) do
-			if v:IsA("Accessory") and not table.find(CachedBlacklist, v) then
-				--warn(v.Name)
-				table.insert(CachedBlacklist, v)
-			end
-		end
-		for _, v in pairs(game.Workspace:GetDescendants()) do
-			if v:IsA("BasePart") and v.Transparency == 1 and not table.find(CachedBlacklist, v)then
-				table.insert(CachedBlacklist, v)
-			end
+	for _,v  in pairs(game:GetDescendants()) do
+		if v:IsA("Accessory") and not table.find(CachedBlacklist, v) then
+			--warn(v.Name)
+			table.insert(CachedBlacklist, v)
 		end
 	end
+	for _, v in pairs(game.Workspace:GetDescendants()) do
+		if v:IsA("BasePart") and v.Transparency == 1 and not table.find(CachedBlacklist, v)then
+			table.insert(CachedBlacklist, v)
+		end
+		end
+	end
+end
 
 
 game.Players.PlayerAdded:Connect(function(player)
@@ -173,13 +176,11 @@ end
 
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
-
 	if not table.find(CachedBlacklist, char) then
 		table.insert(CachedBlacklist, char)
 	end
-
-	Initialized = true
 	InitializeBlacklist()
+	Initialized = true
 
 	if player.Character.Humanoid.Health == 0 then return end
 
@@ -188,10 +189,8 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		FireSound.Parent = gun.Handle
 		FireSound.TimePosition = 0
 		FireSound:Play()
+		game.Debris:AddItem(FireSound, FireSound.TimeLength) 
 
-		FireSound.Ended:Connect(function()
-			FireSound:Destroy()
-		end)
 
 		local Range = 900
 		RayParams.FilterDescendantsInstances = CachedBlacklist
