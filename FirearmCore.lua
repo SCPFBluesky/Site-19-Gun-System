@@ -151,7 +151,9 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	elseif playerPriority == 3 then
 		ClearToDamage = true
 	end
-
+	if playerPriority == 1 and targetPriority == 3 then 
+		ClearToDamage = true
+	end
 	if playerPriority == 2 and targetTeam == "Chaos Insurgency" then
 		ClearToDamage = true
 	end
@@ -182,7 +184,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 	end
 	InitializeBlacklist()
 	Initialized = true
-
+	
 	if player.Character.Humanoid.Health == 0 then return end
 
 	if arg == "Discharge" then
