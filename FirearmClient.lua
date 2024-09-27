@@ -44,6 +44,8 @@ local canFire = false
 
 local DEBUG_MODE = false
 
+local isButtonDown = false
+
 
 local _warn = warn
 
@@ -151,6 +153,7 @@ local function Init(gun)
 		CurrentGun = nil
 		canFire = false
 		IsHolstered = false
+		isButtonDown = false
 
 		for _, v in GunAnimations[gun] do
 			v:Stop()
@@ -317,7 +320,6 @@ end)
 FireButton.MouseButton1Down:Connect(function()
 	if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
 	RealFire(CurrentGun)
-	local isButtonDown = true
 
 	FireButton.MouseButton1Up:Connect(function()
 		isButtonDown = false
@@ -332,7 +334,6 @@ FireButton.MouseButton1Down:Connect(function()
 end)
 
 
-local isButtonDown = false
 
 Mouse.Button1Down:Connect(function()
 	isButtonDown = true
