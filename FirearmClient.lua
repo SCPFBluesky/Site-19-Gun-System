@@ -22,6 +22,8 @@ local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
 
 local State = BridgeNet.CreateBridge("ToolState")
 
+local ReloadRemote = Atlas:GetObject("Reload")
+
 local Player = game.Players.LocalPlayer
 
 local LowerButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.LowerButton
@@ -56,7 +58,9 @@ local GunAnimations = {}
 local GunAmmo = {}
 
 local OriginalAttributes = {}
+
 local IsSystemChanging = {} 
+
 local function SetSafeAttribute(gun, attributeName, value)
 	IsSystemChanging[gun] = true 
 	gun:SetAttribute(attributeName, value)
@@ -218,10 +222,11 @@ function Reload(gun)
 	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
 		return
 	end
+	ReloadRemote:FireServer(CurrentGun)
 	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
 	IsReloading = true
 	canFire = false
-
+	
 	if GunAnimations[CurrentGun][2] then
 		GunAnimations[CurrentGun][2]:Play(.2)
 		task.wait(GunAnimations[CurrentGun][2].Length)
