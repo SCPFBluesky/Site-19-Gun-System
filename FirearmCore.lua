@@ -33,11 +33,11 @@ local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
 CachedBlacklist = {}
-local Initialized = false
+local CachedBlacklistSet = {}
 
 
 local Settings = {
-	ShowBlood = true, -- Enable Blood?
+	ShowBlood = false, -- Enable Blood?
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
 	ShellEjection = false, -- Eject shells?
@@ -49,31 +49,30 @@ local Settings = {
 	AlwaysDamage = false, -- Ignore team check always allows damage
 	EnableGuiltySystem = true -- Enable \ disable class g guilty check
 }
-
-local function InitializeBlacklist()
-	if Initialized == false then
-	for _,v in pairs(game.Workspace:GetDescendants()) do
-		if v:IsA("Instance") then
-			if v:HasTag("RayIgnore") and not table.find(CachedBlacklist, v) then
-				--	warn(v)
-				--warn(CachedBlacklist)
-				table.insert(CachedBlacklist ,v)
-			end
-		end
-	end
-	for _,v  in pairs(game:GetDescendants()) do
-		if v:IsA("Accessory") and not table.find(CachedBlacklist, v) then
-			--warn(v.Name)
-			table.insert(CachedBlacklist, v)
-		end
-	end
-	for _, v in pairs(game.Workspace:GetDescendants()) do
-		if v:IsA("BasePart") and v.Transparency == 1 and not table.find(CachedBlacklist, v)then
-			table.insert(CachedBlacklist, v)
-		end
-		end
-	end
+local function AddToBlacklist(instance)
+  if not CachedBlacklistSet[instance] then
+	     table.insert(CachedBlacklist, instance)
+	      CachedBlacklistSet[instance] = true
+	   end
 end
+local lastInitializeTime = 0
+local INITIALIZE_COOLDOWN = 5
+local function InitializeBlacklist()
+	 local currentTime = tick()
+	 if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
+	      return 
+  end
+	 lastInitializeTime = currentTime
+	 local workspace = game:GetService("Workspace")
+	 local IsA = game.IsA
+  	for _, v in ipairs(game:GetDescendants()) do
+	     if IsA(v, "Accessory") or CollectionService:HasTag(v, "RayIgnore") then
+	        AddToBlacklist(v)
+    elseif IsA(v, "BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
+	     AddToBlacklist(v)
+	     end
+ 	 end
+  end
 
 
 game.Players.PlayerAdded:Connect(function(player)
@@ -183,13 +182,12 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		table.insert(CachedBlacklist, char)
 	end
 	InitializeBlacklist()
-	Initialized = true
 	
 	if player.Character.Humanoid.Health == 0 then return end
 
 	if arg == "Discharge" then
-		local FireSound = gun.Handle:FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
-		FireSound.Parent = gun.Handle
+		local FireSound = gun:FindFirstChild("Handle"):FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
+		FireSound.Parent = gun:FindFirstChild("Handle")
 		FireSound.TimePosition = 0
 		FireSound:Play()
 		game.Debris:AddItem(FireSound, FireSound.TimeLength) 
@@ -235,7 +233,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		end
 
 		if Settings.ShellEjection == true then
-			local ShellPos = (gun.Handle.ShellEjectPoint.CFrame *
+			local ShellPos = (gun:FindFirstChild("Handle").ShellEjectPoint.CFrame *
 				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
 			local Chamber = Instance.new("Part")
 			Chamber.Name = "Chamber"
@@ -246,7 +244,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			Chamber.TopSurface = Enum.SurfaceType.SmoothNoOutlines
 			Chamber.BottomSurface = Enum.SurfaceType.SmoothNoOutlines
 			local Weld = Instance.new("Weld", Chamber)
-			Weld.Part0 = gun.Handle
+			Weld.Part0 = gun:FindFirstChild("Handle")
 			Weld.Part1 = Chamber
 			Weld.C0 = CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)
 			Chamber.Position = ShellPos
@@ -283,7 +281,7 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
 			for _, v in pairs(effectsSource:GetChildren()) do
 				local newEffect = v:Clone()
-				newEffect.Parent = gun.Handle.Muzzle
+				newEffect.Parent = gun:FindFirstChild("Handle").Muzzle
 
 				if newEffect:IsA("PointLight") then
 					newEffect.Enabled = true
