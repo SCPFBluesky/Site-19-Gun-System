@@ -15,39 +15,70 @@
 --!native
 --!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
+
 local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
+
 local State = BridgeNet.CreateBridge("ToolState")
+
+local ReloadRemote = Atlas:GetObject("Reload")
+
 local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
+
 local Muzzle = game.ReplicatedStorage.Shared.Muzzle
+
 local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
+
 local HitEffects = game.ReplicatedStorage.Effects
+
 local Notify = Atlas:GetObject("NotifyPlayer")
+
 local Debris = game:GetService("Debris")
+
 local CollectionService = game:GetService("CollectionService")
+
 local Players = game:GetService("Players")
 
 local TAU = math.pi * 2
+
 local RNG = Random.new()
 
 local RayParams = RaycastParams.new()
+
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
+
 RayParams.IgnoreWater = true
 CachedBlacklist = {}
+
 local CachedBlacklistSet = {}
 
 
+
 local Settings = {
-	ShowBlood = false, -- Enable Blood?
+	ShowBlood = true, -- Enable Blood?
+	
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
+	
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
+	
 	ShellEjection = false, -- Eject shells?
+	
 	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
+	
 	ShellMeshID = 95392019, --MeshID of the shell
+	
 	ShellTextureID = 95391833, -- Shell TextureID
+	
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
+	
 	NotifyPlayer = true, -- Notify the player when they failed team check
+	
 	AlwaysDamage = false, -- Ignore team check always allows damage
-	EnableGuiltySystem = true -- Enable \ disable class g guilty check
+	
+	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
+	
+	EnableBulletHitNotifcation = false, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
+	
+	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency
 }
 local function AddToBlacklist(instance)
   if not CachedBlacklistSet[instance] then
@@ -73,6 +104,7 @@ local function InitializeBlacklist()
 	     end
  	 end
   end
+
 
 
 game.Players.PlayerAdded:Connect(function(player)
@@ -150,6 +182,9 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	elseif playerPriority == 3 then
 		ClearToDamage = true
 	end
+	if playerPriority == 1 and targetPriority == 2 then 
+		ClearToDamage = true
+	end
 	if playerPriority == 1 and targetPriority == 3 then 
 		ClearToDamage = true
 	end
@@ -176,13 +211,23 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	return ClearToDamage
 end
 
+ReloadRemote.OnServerEvent:Connect(function(gun, CurrentGun)
+	local MagIn = CurrentGun.Handle.Primary:FindFirstChild("magIn")
+	local MagOut = CurrentGun.Handle.Primary:FindFirstChild("magOut")
+	local Mag = CurrentGun.Handle:FindFirstChild("Mag")
+	MagOut:Play()
+	Mag.Transparency = 1
+	task.wait(1.27)
+	MagIn:Play()
+	Mag.Transparency = 0
+end)
 
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 	if not table.find(CachedBlacklist, char) then
 		table.insert(CachedBlacklist, char)
 	end
 	InitializeBlacklist()
-	
+
 	if player.Character.Humanoid.Health == 0 then return end
 
 	if arg == "Discharge" then
@@ -191,7 +236,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		FireSound.TimePosition = 0
 		FireSound:Play()
 		game.Debris:AddItem(FireSound, FireSound.TimeLength) 
-
 
 		local Range = 900
 		RayParams.FilterDescendantsInstances = CachedBlacklist
@@ -214,9 +258,60 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			local hitInstance = raycastResult.Instance
 			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
 
+			local function GetHitPart(part)
+				if part:IsA("BasePart") then
+					if part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
+						return "Torso"
+					elseif part.Name == "Head" then
+						return "Head"
+					elseif part.Name == "Left Arm" or part.Name == "Right Arm" or part.Name == "Left Leg" or part.Name == "Right Leg" then
+						return part.Name
+					elseif part.Name == "RightUpperArm" or part.Name == "LeftUpperArm" then
+						return "Shoulder"
+					elseif part.Name == "RightLowerArm" or part.Name == "LeftLowerArm" then
+						return "Lower Arm"
+					elseif part.Name == "RightUpperLeg" or part.Name == "LeftUpperLeg" then
+						return "Upper Leg"
+					elseif part.Name == "RightLowerLeg" or part.Name == "LeftLowerLeg" then
+						return "Lower Leg"
+					end
+				end
+				return "Torso"
+			end
+
 			if hitHumanoid then
 				Attach.Hit:Play()
 				local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
+
+				if targetPlr then
+					local hitPart = GetHitPart(hitInstance)
+					local message
+					if hitPart == "Torso" then
+						message = "A bullet hit your Torso."
+					elseif hitPart == "Head" then
+						message = "A bullet hit your Head."
+					elseif hitPart == "Left Arm" then
+						message = "A bullet hit your Left Arm."
+					elseif hitPart == "Right Arm" then
+						message = "A bullet hit your Right Arm."
+					elseif hitPart == "Left Leg" then
+						message = "A bullet hit your Left Leg."
+					elseif hitPart == "Right Leg" then
+						message = "A bullet hit your Right Leg."
+					elseif hitPart == "Shoulder" then
+						message = "A bullet hit your Shoulder."
+					elseif hitPart == "Lower Arm" then
+						message = "A bullet hit your Lower Arm."
+					elseif hitPart == "Upper Leg" then
+						message = "A bullet hit your Upper Leg."
+					elseif hitPart == "Lower Leg" then
+						message = "A bullet hit your Lower Leg."
+					end
+
+					if message and Settings.EnableBulletHitNotifcation == true then
+						Notify:FireClient(targetPlr, message)
+					end
+				end
 
 				if not targetPlr or TeamCheck(player, targetPlr, gun) then
 					hitHumanoid:TakeDamage(dmg)
@@ -301,7 +396,5 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		end
 	end
 end
-
-
 
 State:Connect(Fire)
