@@ -55,55 +55,55 @@ local CachedBlacklistSet = {}
 
 local Settings = {
 	ShowBlood = true, -- Enable Blood?
-	
+
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
-	
+
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
-	
+
 	ShellEjection = false, -- Eject shells?
-	
+
 	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
-	
+
 	ShellMeshID = 95392019, --MeshID of the shell
-	
+
 	ShellTextureID = 95391833, -- Shell TextureID
-	
+
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
-	
+
 	NotifyPlayer = true, -- Notify the player when they failed team check
-	
+
 	AlwaysDamage = false, -- Ignore team check always allows damage
-	
+
 	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
-	
+
 	EnableBulletHitNotifcation = false, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
-	
+
 	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency
 }
 local function AddToBlacklist(instance)
-  if not CachedBlacklistSet[instance] then
-	     table.insert(CachedBlacklist, instance)
-	      CachedBlacklistSet[instance] = true
-	   end
+	if not CachedBlacklistSet[instance] then
+		table.insert(CachedBlacklist, instance)
+		CachedBlacklistSet[instance] = true
+	end
 end
 local lastInitializeTime = 0
 local INITIALIZE_COOLDOWN = 5
 local function InitializeBlacklist()
-	 local currentTime = tick()
-	 if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
-	      return 
-  end
-	 lastInitializeTime = currentTime
-	 local workspace = game:GetService("Workspace")
-	 local IsA = game.IsA
-  	for _, v in ipairs(game:GetDescendants()) do
-	     if IsA(v, "Accessory") or CollectionService:HasTag(v, "RayIgnore") then
-	        AddToBlacklist(v)
-    elseif IsA(v, "BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
-	     AddToBlacklist(v)
-	     end
- 	 end
-  end
+	local currentTime = tick()
+	if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
+		return 
+	end
+	lastInitializeTime = currentTime
+	local workspace = game:GetService("Workspace")
+	local IsA = game.IsA
+	for _, v in ipairs(game:GetDescendants()) do
+		if IsA(v, "Accessory") or CollectionService:HasTag(v, "RayIgnore") then
+			AddToBlacklist(v)
+		elseif IsA(v, "BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
+			AddToBlacklist(v)
+		end
+	end
+end
 
 
 
@@ -129,17 +129,23 @@ local function GetTeamPriority(teamName, PlayerWhoFired)
 			end
 		end
 	end
-	Notify:FireClient(PlayerWhoFired, "This player's team isn't defined in the module. If you see this, report this to the owner of the game.")
-	warn("Team is nil, did you specify the team in the module correctly?")
-	return nil 
+
+	if not PlayerWhoFired or not PlayerWhoFired:IsA("Player") then
+		warn("Invalid PlayerWhoFired:", PlayerWhoFired)
+		return nil
+	end
+
+	Notify:FireClient(PlayerWhoFired, "This player's team isn't defined in the Team Priority Module. If you see this, report this to the owner of the game.")
+	warn("Team is nil, did you specify all teams in the module correctly?")
+	return nil
 end
 
 local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	local playerTeam = PlayerWhoFired.Team.Name
 	local targetTeam = targetPlr.Team.Name
 
-	local playerPriority = GetTeamPriority(PlayerWhoFired, playerTeam)
-	local targetPriority = GetTeamPriority(PlayerWhoFired, targetTeam)
+	local playerPriority = GetTeamPriority(playerTeam, PlayerWhoFired)
+	local targetPriority = GetTeamPriority(targetTeam, PlayerWhoFired)
 
 	local ClearToDamage = false
 
@@ -181,6 +187,9 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 			end
 		end
 	elseif playerPriority == 3 then
+		ClearToDamage = true
+	end
+	if playerPriority == 1 and targetPriority == 2 then
 		ClearToDamage = true
 	end
 	if playerPriority == 1 and targetPriority == 3 then 
