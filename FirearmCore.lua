@@ -121,7 +121,7 @@ game.Players.PlayerAdded:Connect(function(player)
 		end)
 	end)
 end)
-local function GetTeamPriority(teamName)
+local function GetTeamPriority(teamName, PlayerWhoFired)
 	for priorityLevel, teams in pairs(TeamPriorityModule) do
 		for _, team in ipairs(teams) do
 			if team == teamName then
@@ -129,7 +129,8 @@ local function GetTeamPriority(teamName)
 			end
 		end
 	end
-	print("Team is nil, did you specifiy the team in the moudle right?")
+	Notify:FireClient(PlayerWhoFired, "This player's team isn't defined in the module. If you see this, report this to the owner of the game.")
+	warn("Team is nil, did you specify the team in the module correctly?")
 	return nil 
 end
 
@@ -137,8 +138,8 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	local playerTeam = PlayerWhoFired.Team.Name
 	local targetTeam = targetPlr.Team.Name
 
-	local playerPriority = GetTeamPriority(playerTeam)
-	local targetPriority = GetTeamPriority(targetTeam)
+	local playerPriority = GetTeamPriority(PlayerWhoFired, playerTeam)
+	local targetPriority = GetTeamPriority(PlayerWhoFired, targetTeam)
 
 	local ClearToDamage = false
 
@@ -180,9 +181,6 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 			end
 		end
 	elseif playerPriority == 3 then
-		ClearToDamage = true
-	end
-	if playerPriority == 1 and targetPriority == 2 then 
 		ClearToDamage = true
 	end
 	if playerPriority == 1 and targetPriority == 3 then 
