@@ -6,35 +6,37 @@
 
 # This system includes almost all features of the gun system including Mobile support
 
-# Inside the Settings inside "FirearmCore" (ServerScript) there are 13 Options you can customise to your liking
+# Inside the Settings inside "FirearmCore" (ServerScript) there are 14 Options you can customise to your liking
 
 ```lua
 local Settings = {
-	ShowBlood = true, -- Enable Blood?
-	
+	ShowBlood = false, -- Enable Blood?
+
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
-	
+
 	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
-	
+
 	ShellEjection = false, -- Eject shells?
-	
+
 	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
-	
+
 	ShellMeshID = 95392019, --MeshID of the shell
-	
+
 	ShellTextureID = 95391833, -- Shell TextureID
-	
+
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
-	
-	NotifyPlayer = true, -- Notify the player when they failed team check
-	
+
+	NotifyPlayer = false, -- Notify the player when they failed team check
+
 	AlwaysDamage = false, -- Ignore team check always allows damage
+
+	EnableGuiltySystem = false, -- Enable \ disable class g guilty check
+
+	EnableBulletHitNotifcation = true, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
+
+	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency 
 	
-	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
-	
-	EnableBulletHitNotifcation = false, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
-	
-	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency
+	AlternativeSpread = false -- Enables S19 Spread system disable if you pefer mine which you should i dont know why anyone would like s19s
 }
 ```
 
