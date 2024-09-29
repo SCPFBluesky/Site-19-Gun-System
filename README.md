@@ -1,6 +1,6 @@
 # Site 19 Gun System Replica
 
-# IMPORTANT!! : WHEN MAKING A CUSTOM GUN REMEMBER TO ADD THE TAG "Firarm", Click on your custom gun tool its self scroll all the way down until you find "Tags" click the + button and and type in "Firearm"
+# IMPORTANT!! : WHEN MAKING A CUSTOM GUN REMEMBER TO ADD THE TAG "Firearm", Click on your custom gun tool its self scroll all the way down until you find "Tags" click the + button and and type in "Firearm"
 
 # This gun system was made to replicate the gun system found in "Site-19 Roleplay" made by AdministratorGnar and ThunderGemios10
 
