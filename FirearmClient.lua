@@ -71,7 +71,12 @@ end
 local function Init(gun)
 	if gun.Parent ~= Player.Backpack then return end
 
-	local SettingsModule = require(gun:WaitForChild("Settings"))
+	local success, SettingsModule = pcall(function()
+		return require(gun:WaitForChild("Settings"))
+	end)
+
+	if not success or SettingsModule == nil then return end
+
 	local equip, unequip
 
 	OriginalAttributes[gun] = {
@@ -215,7 +220,12 @@ end
 
 
 function Reload(gun)
-	local currentGunSettings = require(CurrentGun:FindFirstChild("Settings"))
+	local success, currentGunSettings = pcall(function()
+		return require(CurrentGun:FindFirstChild("Settings"))
+	end)
+
+	if not success or currentGunSettings == nil then return end
+
 	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
 		return
 	end
@@ -236,7 +246,12 @@ function Reload(gun)
 		end
 	end
 
-	local currentGunSettings = require(CurrentGun:FindFirstChild("Settings"))
+	local success, currentGunSettings = pcall(function()
+		return require(CurrentGun:FindFirstChild("Settings"))
+	end)
+
+	if not success or currentGunSettings == nil then return end
+
 	if currentGunSettings then
 		GunAmmo[CurrentGun] = currentGunSettings.Ammo
 	else
@@ -248,12 +263,10 @@ function Reload(gun)
 		return
 	end
 
-	SetSafeAttribute(CurrentGun, "CurrentAmmo", GunAmmo[CurrentGun])
-
 	if GunAnimations[CurrentGun] and GunAnimations[CurrentGun][1] then
 		GunAnimations[CurrentGun][1]:Play()
 	end
-
+	SetSafeAttribute(CurrentGun, "CurrentAmmo", GunAmmo[CurrentGun])
 	IsReloading = false
 	canFire = true
 end
@@ -325,7 +338,7 @@ end)
 FireButton.MouseButton1Down:Connect(function()
 	if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
 	RealFire(CurrentGun)
-
+		
 	FireButton.MouseButton1Up:Connect(function()
 		isButtonDown = false
 	end)
@@ -355,6 +368,7 @@ end)
 
 Mouse.Button1Up:Connect(function() 
 	isButtonDown = false 
+	State:Fire("Stop")
 end)
 
 
