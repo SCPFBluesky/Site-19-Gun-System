@@ -1,20 +1,22 @@
 --[[
 	Writer: @SCPF_RedSky
-	Name : FirearmCore.lua
+	Name : FirearmClient.lua
 	Date : 9/15/24
-	ClassName : Script
-	RunTime: Server
+	ClassName : LocalScript
+	RunTime: Client
 	Description: 
 	This system replicates the gun system from Site 19, originally created by AdministratorGnar and ThunderGemios10 
 	Please note only Site-19 Verisons 0-3 are only supported
 	If you want this to be like V4 just make a holster script and script firing animations yourself.
-	This is the serverside aspect of the gun system, handling team checks, muzzle effects
-	shell ejection general settings and more
+	This is the cleitnside aspect of the gun system, handling user input,
+	attribute creations, mobile, and more.
 --]]
 --!nonstrict
 --!native
 --!divine-intellect
 local Atlas = require(game.ReplicatedStorage.Atlas)
+
+local InputService = game:GetService("UserInputService")
 
 local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
 
@@ -22,386 +24,352 @@ local State = BridgeNet.CreateBridge("ToolState")
 
 local ReloadRemote = Atlas:GetObject("Reload")
 
-local TeamPriorityModule = Atlas:LoadLibrary("TeamPriorityModule")
+local Player = game.Players.LocalPlayer
 
-local Muzzle = game.ReplicatedStorage.Shared.Muzzle
+local LowerButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.LowerButton
 
-local OldEffect = game.ReplicatedStorage.Shared.OldMuzzle
+local FireButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.FireButton
 
-local HitEffects = game.ReplicatedStorage.Effects
+local ReloadButton = Player.PlayerGui:WaitForChild("MobileUI").MobileButtons.ReloadButton
 
-local Notify = Atlas:GetObject("NotifyPlayer")
+local Mouse = Player:GetMouse()
 
-local Debris = game:GetService("Debris")
+local CurrentGun = nil
 
-local CollectionService = game:GetService("CollectionService")
+local CurrentFiremode = nil
 
-local Players = game:GetService("Players")
+local IsHolstered = false
 
-local TAU = math.pi * 2
+local IsReloading = false
 
-local RNG = Random.new()
+local canFire = false
 
-local RayParams = RaycastParams.new()
+local DEBUG_MODE = false
 
-RayParams.FilterType = Enum.RaycastFilterType.Exclude
-
-RayParams.IgnoreWater = true
-CachedBlacklist = {}
-
-local CachedBlacklistSet = {}
+local isButtonDown = false
 
 
+local _warn = warn
 
-local Settings = {
-	ShowBlood = true, -- Enable Blood?
+local _print = print
 
-	ShowMuzzleEffects = true, -- Enable Muzzle effects?
+local GunAnimations = {}
 
-	ShowV1MuzzleEffects = false, -- Show V1\V2 Muzzle effects?
+local GunAmmo = {}
 
-	ShellEjection = false, -- Eject shells?
+local OriginalAttributes = {}
 
-	BulletShellOffset = Vector3.new(1, 1, 0), -- Vector 3 offset of the bulletshell when ejected
+local IsSystemChanging = {} 
 
-	ShellMeshID = 95392019, --MeshID of the shell
-
-	ShellTextureID = 95391833, -- Shell TextureID
-
-	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
-
-	NotifyPlayer = true, -- Notify the player when they failed team check
-
-	AlwaysDamage = false, -- Ignore team check always allows damage
-
-	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
-
-	EnableBulletHitNotifcation = false, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
-
-	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency
-}
-local function AddToBlacklist(instance)
-	if not CachedBlacklistSet[instance] then
-		table.insert(CachedBlacklist, instance)
-		CachedBlacklistSet[instance] = true
-	end
+local function SetSafeAttribute(gun, attributeName, value)
+	IsSystemChanging[gun] = true 
+	gun:SetAttribute(attributeName, value)
+	task.wait()
+	IsSystemChanging[gun] = false 
 end
-local lastInitializeTime = 0
-local INITIALIZE_COOLDOWN = 5
-local function InitializeBlacklist()
-	local currentTime = tick()
-	if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
+
+local function Init(gun)
+	if gun.Parent ~= Player.Backpack then return end
+
+	local success, SettingsModule = pcall(function()
+		return require(gun:WaitForChild("Settings"))
+	end)
+
+	if not success or SettingsModule == nil then return end
+
+	local equip, unequip
+
+	OriginalAttributes[gun] = {
+		Ammo = SettingsModule.Ammo,
+		Damage = SettingsModule.Damage,
+		RPM = SettingsModule.RPM,
+		Automatic = SettingsModule.Automatic,
+		CanLower = SettingsModule.CanLower
+	}
+
+	if not GunAmmo[gun] then
+		GunAmmo[gun] = SettingsModule.Ammo
+	end
+
+	IsSystemChanging[gun] = false
+
+	if gun then
+		SetSafeAttribute(gun, "CurrentAmmo", GunAmmo[gun])
+		SetSafeAttribute(gun, "Ammo", SettingsModule.Ammo)
+		SetSafeAttribute(gun, "Automatic", SettingsModule.Automatic)
+		SetSafeAttribute(gun, "RPM", SettingsModule.RPM)
+		SetSafeAttribute(gun, "CanLower", SettingsModule.CanLower)
+		SetSafeAttribute(gun, "Damage", SettingsModule.Damage)
+	else
+		warn("gun is nil")
+	end
+
+
+	GunAnimations[gun] = {}
+	equip = gun.Equipped:Connect(function()
+		for _, v in pairs(gun:FindFirstChild("Animations"):GetChildren()) do
+			if v:IsA("Animation") then
+				local success, AnimationTrack = pcall(function()
+					if not Player.Character then
+						Player.CharacterAdded:Wait()
+					end
+
+					local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+					if not humanoid then
+						humanoid = Player.Character:WaitForChild("Humanoid", 5)
+					end
+
+					if humanoid then
+						return humanoid:LoadAnimation(v)
+					else
+						error("Humanoid not found in player's character.")
+					end
+				end)
+
+				if success and AnimationTrack then
+					table.insert(GunAnimations[gun], AnimationTrack)
+				else
+					warn("Failed to load animation: " .. tostring(v.Name) .. ". Error: " .. tostring(AnimationTrack))
+				end
+			end
+		end
+
+		CurrentGun = gun
+		canFire = true
+
+		if GunAnimations[CurrentGun][1] then
+			GunAnimations[CurrentGun][1]:Play(0.2)
+		end
+
+		if InputService.TouchEnabled then
+			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
+		end
+
+		gun:SetAttribute("CurrentAmmo", GunAmmo[gun])
+	end)
+
+	unequip = gun.Unequipped:Connect(function()
+		if IsReloading then
+			IsReloading = false
+			canFire = true
+		end
+
+		if InputService.TouchEnabled then
+			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
+		end
+
+		GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
+		CurrentGun = nil
+		canFire = false
+		IsHolstered = false
+		isButtonDown = false
+
+		for _, v in GunAnimations[gun] do
+			v:Stop()
+		end
+	end)
+
+	gun.AttributeChanged:Connect(function(attribute)
+		if not IsSystemChanging[gun] then
+			if attribute == "CurrentAmmo" and gun:GetAttribute("CurrentAmmo") ~= OriginalAttributes[gun].Ammo then
+				Player:Kick("Attempted to exploit by modifying gun attributes (CurrentAmmo).")
+			elseif attribute == "Damage" and gun:GetAttribute("Damage") ~= OriginalAttributes[gun].Damage then
+				Player:Kick("Attempted to exploit by modifying gun attributes (Damage).")
+			elseif attribute == "RPM" and gun:GetAttribute("RPM") ~= OriginalAttributes[gun].RPM then
+				Player:Kick("Attempted to exploit by modifying gun attributes (RPM).")
+			elseif attribute == "Automatic" and gun:GetAttribute("Automatic") ~= OriginalAttributes[gun].Automatic then
+				Player:Kick("Attempted to exploit by modifying gun attributes (Automatic).")
+			elseif attribute == "CanLower" and gun:GetAttribute("CanLower") ~= OriginalAttributes[gun].CanLower then
+				Player:Kick("Attempted to exploit by modifying gun attributes (CanLower).")
+			else
+				Player:Kick("Attempted to exploit by modifying gun attributes.")
+			end
+		end
+	end)
+end
+
+
+local function Lower(gun)
+
+	if not CurrentGun or CurrentGun.Parent ~= Player.Character or IsReloading == true then
+		return
+	end
+
+	if not CurrentGun:GetAttribute("CanLower") then
 		return 
 	end
-	lastInitializeTime = currentTime
-	local workspace = game:GetService("Workspace")
-	local IsA = game.IsA
-	for _, v in ipairs(game:GetDescendants()) do
-		if IsA(v, "Accessory") or CollectionService:HasTag(v, "RayIgnore") then
-			AddToBlacklist(v)
-		elseif IsA(v, "BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
-			AddToBlacklist(v)
+
+	IsHolstered = not IsHolstered 
+	if IsHolstered then
+		canFire = false
+		if GunAnimations[CurrentGun][3] then
+			GunAnimations[CurrentGun][3]:Play() --V2\V1 Speed : 0.3 V3: Blank
 		end
+
+	else
+		canFire = true
+		if GunAnimations[CurrentGun][3] then
+			GunAnimations[CurrentGun][3]:Stop()
+		end
+		if GunAnimations[CurrentGun][1] then
+			GunAnimations[CurrentGun][1]:Play() --V2\V1 Speed : .2 V3: Blank
+		end
+
 	end
 end
 
 
-
-game.Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(char)
-		for _, v in pairs(char:GetDescendants()) do
-			if v:IsA("Accessory") then
-				CollectionService:AddTag(v, "RayIgnore")
-			end
-		end
-		char.DescendantAdded:Connect(function(descendant)
-			if descendant:IsA("Accessory") then
-				CollectionService:AddTag(descendant, "RayIgnore")
-			end
-		end)
+function Reload(gun)
+	local success, currentGunSettings = pcall(function()
+		return require(CurrentGun:FindFirstChild("Settings"))
 	end)
-end)
-local function GetTeamPriority(teamName, PlayerWhoFired)
-	for priorityLevel, teams in pairs(TeamPriorityModule) do
-		for _, team in ipairs(teams) do
-			if team == teamName then
-				return tonumber(priorityLevel:match("%d+"))
-			end
+
+	if not success or currentGunSettings == nil then return end
+
+	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
+		return
+	end
+	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
+		return
+	end
+	ReloadRemote:FireServer(CurrentGun)
+	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
+	IsReloading = true
+	canFire = false
+	
+	if GunAnimations[CurrentGun][2] then
+		GunAnimations[CurrentGun][2]:Play(.2)
+		task.wait(GunAnimations[CurrentGun][2].Length)
+		if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character then
+			IsReloading = false
+			return
 		end
 	end
 
-	if not PlayerWhoFired or not PlayerWhoFired:IsA("Player") then
-		warn("Invalid PlayerWhoFired:", PlayerWhoFired)
-		return nil
+	local success, currentGunSettings = pcall(function()
+		return require(CurrentGun:FindFirstChild("Settings"))
+	end)
+
+	if not success or currentGunSettings == nil then return end
+
+	if currentGunSettings then
+		GunAmmo[CurrentGun] = currentGunSettings.Ammo
+	else
+		warn("nil")
 	end
 
-	Notify:FireClient(PlayerWhoFired, "This player's team isn't defined in the Team Priority Module. If you see this, report this to the owner of the game.")
-	warn("Team is nil, did you specify all teams in the module correctly?")
-	return nil
+	if not CurrentGun then
+		IsReloading = false
+		return
+	end
+
+	if GunAnimations[CurrentGun] and GunAnimations[CurrentGun][1] then
+		GunAnimations[CurrentGun][1]:Play()
+	end
+	SetSafeAttribute(CurrentGun, "CurrentAmmo", GunAmmo[CurrentGun])
+	IsReloading = false
+	canFire = true
 end
 
-local function TeamCheck(PlayerWhoFired, targetPlr, gun)
-	local playerTeam = PlayerWhoFired.Team.Name
-	local targetTeam = targetPlr.Team.Name
+local CONST_RANGE = 1000
+local RayParams = RaycastParams.new()
+RayParams.RespectCanCollide = true
+RayParams.FilterType = Enum.RaycastFilterType.Exclude
+RayParams.IgnoreWater = true
 
-	local playerPriority = GetTeamPriority(playerTeam, PlayerWhoFired)
-	local targetPriority = GetTeamPriority(targetTeam, PlayerWhoFired)
 
-	local ClearToDamage = false
-
-	if Settings.AlwaysDamage == true and not (PlayerWhoFired == targetPlr) then
-		return true
+local function RealFire(gun)
+	if IsHolstered or not CurrentGun or not canFire or not Player.Character or not Player.Character:FindFirstChild("Humanoid") or Player.Character.Humanoid.Health == 0 or IsReloading then
+		return
 	end
 
-	if PlayerWhoFired == targetPlr then
-		return false
+	local CurrentAmmo = gun:GetAttribute("CurrentAmmo")
+	if not CurrentAmmo or CurrentAmmo <= 0 then
+		return
 	end
+	SetSafeAttribute(gun, "CurrentAmmo",CurrentAmmo - 1)
+	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
-	if playerPriority == 1 and targetPriority == 1 then
-		ClearToDamage = false
-		if Settings.NotifyPlayer == true then
-			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
-		end
-	elseif playerPriority == 2 then
-		if targetPriority == 2 or targetPriority == 3 then
-			ClearToDamage = false
-			if Settings.NotifyPlayer == true then
-				Notify:FireClient(PlayerWhoFired, "You cannot damage people who also work for the Foundation.")
-			end
-		elseif targetTeam == "Chaos Insurgency" then
-			ClearToDamage = true
-		end
+	local mousePos = Mouse.Hit.Position
+	local camera = workspace.CurrentCamera
+	local cameraRay = camera:ScreenPointToRay(Mouse.X, Mouse.Y)
 
-		if targetTeam == "Class D" then
-			if Settings.EnableGuiltySystem == true then
-				if targetPlr.Character:GetAttribute("Guilty") == true then
-					ClearToDamage = true
-				else
-					if Settings.NotifyPlayer == true then
-						Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
-					end
-					ClearToDamage = false
-				end
-			else
-				ClearToDamage = true
-			end
-		end
-	elseif playerPriority == 3 then
-		ClearToDamage = true
-	end
-	if playerPriority == 1 and targetPriority == 2 then
-		ClearToDamage = true
-	end
-	if playerPriority == 1 and targetPriority == 3 then 
-		ClearToDamage = true
-	end
-	if playerPriority == 2 and targetTeam == "Chaos Insurgency" then
-		ClearToDamage = true
-	end
+	local aimDirection = cameraRay.Direction
+	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera}
 
-	if playerTeam == "Chaos Insurgency" and (targetPriority == 2 or targetPriority == 3) then
-		ClearToDamage = true
-	end
+	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
 
-	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
-		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
-		ClearToDamage = false
-		if Settings.NotifyPlayer == true then
-			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
-		end
-	end
-
-	if targetPlr and targetPlr.Character:GetAttribute("Zombie") == true then
-		ClearToDamage = true
-	end
-
-	return ClearToDamage
+	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
+	State:Fire(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
 end
 
-ReloadRemote.OnServerEvent:Connect(function(gun, CurrentGun)
-	local MagIn = CurrentGun.Handle.Primary:FindFirstChild("magIn")
-	local MagOut = CurrentGun.Handle.Primary:FindFirstChild("magOut")
-	local Mag = CurrentGun.Handle:FindFirstChild("Mag")
-	MagOut:Play()
-	Mag.Transparency = 1
-	task.wait(1.27)
-	MagIn:Play()
-	Mag.Transparency = 0
+
+
+
+InputService.InputBegan:Connect(function(inputobject, gpe)
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.E then
+		Lower(CurrentGun)
+	end
 end)
 
-local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
-	if not table.find(CachedBlacklist, char) then
-		table.insert(CachedBlacklist, char)
+
+ReloadButton.MouseButton1Click:Connect(function()
+	if CurrentGun and not IsReloading then
+		Reload(CurrentGun)
 	end
-	InitializeBlacklist()
+end)
 
-	if player.Character.Humanoid.Health == 0 then return end
 
-	if arg == "Discharge" then
-		local FireSound = gun:FindFirstChild("Handle"):FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
-		FireSound.Parent = gun:FindFirstChild("Handle")
-		FireSound.TimePosition = 0
-		FireSound:Play()
-		game.Debris:AddItem(FireSound, FireSound.TimeLength) 
+LowerButton.MouseButton1Click:Connect(function()
+	if CurrentGun then
+		Lower(CurrentGun)
+	end
+end)
 
-		local Range = 900
-		RayParams.FilterDescendantsInstances = CachedBlacklist
-		local TAU = math.pi * 2
-		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.5, 0.5
+InputService.InputBegan:Connect(function(inputobject, gpe)
+	if not CurrentGun or IsReloading == true then
+		return
+	end
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.R then
+		Reload(CurrentGun)
+	end
+end)
 
-		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
-		local spreadDirection = (directionalCF *
-			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) *
-			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
-		).LookVector
+FireButton.MouseButton1Down:Connect(function()
+	if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
+	RealFire(CurrentGun)
+		
+	FireButton.MouseButton1Up:Connect(function()
+		isButtonDown = false
+	end)
 
-		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
-
-		if raycastResult and raycastResult.Position then
-			local Attach = HitEffects.Effects:Clone()
-			Attach.Parent = workspace.Terrain
-			Attach.CFrame = CFrame.new(raycastResult.Position, raycastResult.Position + raycastResult.Normal)
-
-			local hitInstance = raycastResult.Instance
-			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
-
-			local function GetHitPart(part)
-				if part:IsA("BasePart") then
-					if part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
-						return "Torso"
-					elseif part.Name == "Head" then
-						return "Head"
-					elseif part.Name == "Left Arm" or part.Name == "Right Arm" or part.Name == "Left Leg" or part.Name == "Right Leg" then
-						return part.Name
-					elseif part.Name == "RightUpperArm" or part.Name == "LeftUpperArm" then
-						return "Shoulder"
-					elseif part.Name == "RightLowerArm" or part.Name == "LeftLowerArm" then
-						return "Lower Arm"
-					elseif part.Name == "RightUpperLeg" or part.Name == "LeftUpperLeg" then
-						return "Upper Leg"
-					elseif part.Name == "RightLowerLeg" or part.Name == "LeftLowerLeg" then
-						return "Lower Leg"
-					end
-				end
-				return "Torso"
-			end
-
-			if hitHumanoid then
-				Attach.Hit:Play()
-				local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
-
-				if targetPlr then
-					local hitPart = GetHitPart(hitInstance)
-					local message
-					if hitPart == "Torso" then
-						message = "A bullet hit your Torso."
-					elseif hitPart == "Head" then
-						message = "A bullet hit your Head."
-					elseif hitPart == "Left Arm" then
-						message = "A bullet hit your Left Arm."
-					elseif hitPart == "Right Arm" then
-						message = "A bullet hit your Right Arm."
-					elseif hitPart == "Left Leg" then
-						message = "A bullet hit your Left Leg."
-					elseif hitPart == "Right Leg" then
-						message = "A bullet hit your Right Leg."
-					elseif hitPart == "Shoulder" then
-						message = "A bullet hit your Shoulder."
-					elseif hitPart == "Lower Arm" then
-						message = "A bullet hit your Lower Arm."
-					elseif hitPart == "Upper Leg" then
-						message = "A bullet hit your Upper Leg."
-					elseif hitPart == "Lower Leg" then
-						message = "A bullet hit your Lower Leg."
-					end
-
-					if message and Settings.EnableBulletHitNotifcation == true then
-						Notify:FireClient(targetPlr, message)
-					end
-				end
-
-				if not targetPlr or TeamCheck(player, targetPlr, gun) then
-					hitHumanoid:TakeDamage(dmg)
-				end
-
-				if Settings.ShowBlood and targetPlr ~= player then
-					Attach.Blood:Emit(20)
-				end
-			else
-				Attach.Flash:Emit(20)
-				Attach.Smoke:Emit(20)
-				game.Debris:addItem(Attach, Attach.Smoke.Lifetime.Max+0.1)
-			end
+	if CurrentGun:GetAttribute("Automatic") then
+		while isButtonDown and canFire and not IsHolstered do
+			RealFire(CurrentGun)
+			wait(CurrentGun:GetAttribute("RPM"))
 		end
-
-		if Settings.ShellEjection == true then
-			local ShellPos = (gun:FindFirstChild("Handle").ShellEjectPoint.CFrame *
-				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
-			local Chamber = Instance.new("Part")
-			Chamber.Name = "Chamber"
-			Chamber.Size = Vector3.new(0.01, 0.01, 0.01)
-			Chamber.Transparency = 1
-			Chamber.Anchored = false
-			Chamber.CanCollide = false
-			Chamber.TopSurface = Enum.SurfaceType.SmoothNoOutlines
-			Chamber.BottomSurface = Enum.SurfaceType.SmoothNoOutlines
-			local Weld = Instance.new("Weld", Chamber)
-			Weld.Part0 = gun:FindFirstChild("Handle")
-			Weld.Part1 = Chamber
-			Weld.C0 = CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)
-			Chamber.Position = ShellPos
-			Chamber.Parent = workspace.CurrentCamera
-
-			local function spawner()
-				local Shell = Instance.new("Part")
-				Shell.CFrame = Chamber.CFrame * CFrame.fromEulerAnglesXYZ(-2.5, 1, 1)
-				Shell.Size = Vector3.new(0.2, 0.2, 0.32)
-				Shell.CanCollide = true
-				Shell.Name = "Shell"
-				Atlas:TagObject(Shell, "RayIgnore")
-				Shell.Velocity = Chamber.CFrame.lookVector * 20 + Vector3.new(math.random(-10, 10), 20, math.random(-10, 10))
-				Shell.RotVelocity = Vector3.new(0, 200, 0)
-				Shell.Parent = workspace
-
-				local shellmesh = Instance.new("SpecialMesh")
-				shellmesh.Scale = Vector3.new(2, 2, 2)
-				shellmesh.MeshId = "rbxassetid://" .. Settings.ShellMeshID
-				shellmesh.TextureId = "rbxassetid://" .. Settings.ShellTextureID
-				shellmesh.MeshType = Enum.MeshType.FileMesh
-				shellmesh.Parent = Shell
-
-				game:GetService("Debris"):addItem(Shell, Settings.DisappearTime)
-			end
-			spawn(spawner)
-			game.Debris:AddItem(Chamber, 10)
-		end
+	end
+end)
 
 
-		local showMuzzleEffects = Settings.ShowMuzzleEffects
-		local effectsCloned = false
-		if showMuzzleEffects and not effectsCloned then
-			local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
-			for _, v in pairs(effectsSource:GetChildren()) do
-				local newEffect = v:Clone()
-				newEffect.Parent = gun:FindFirstChild("Handle").Muzzle
 
-				if newEffect:IsA("PointLight") then
-					newEffect.Enabled = true
-					game.Debris:AddItem(newEffect, 0.1)
-				elseif newEffect:IsA("ParticleEmitter") then
-					newEffect:Emit(20)
-					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
-				end
-			end
-			effectsCloned = true
-		end
-
-		for i = #CachedBlacklist, 1, -1 do
-			if CachedBlacklist[i] == player.Character then
-				table.remove(CachedBlacklist, i)
+Mouse.Button1Down:Connect(function()
+	isButtonDown = true
+	if CurrentGun and canFire and not IsHolstered then
+		RealFire(CurrentGun)
+		if CurrentGun:GetAttribute("Automatic") then
+			while isButtonDown and canFire and not IsHolstered do
+				RealFire(CurrentGun)
+				wait(CurrentGun:GetAttribute("RPM"))
 			end
 		end
 	end
-end
+end)
 
-State:Connect(Fire)
+Mouse.Button1Up:Connect(function() 
+	isButtonDown = false 
+	State:Fire("Stop")
+end)
+
+
+Atlas:BindToTag("Firearm", Init)
