@@ -287,20 +287,33 @@ local function RealFire(gun)
 	if not CurrentAmmo or CurrentAmmo <= 0 then
 		return
 	end
-	SetSafeAttribute(gun, "CurrentAmmo",CurrentAmmo - 1)
+	SetSafeAttribute(gun, "CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
-	local mousePos = Mouse.Hit.Position
 	local camera = workspace.CurrentCamera
 	local cameraRay = camera:ScreenPointToRay(Mouse.X, Mouse.Y)
+	local cameraAimDirection = cameraRay.Direction
 
-	local aimDirection = cameraRay.Direction
-	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera}
+	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera, Player.Character}
+	local cameraRaycastResult = workspace:Raycast(cameraRay.Origin, cameraAimDirection * CONST_RANGE, RayParams)
 
-	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
+	local aimPoint = cameraRaycastResult and cameraRaycastResult.Position or (cameraRay.Origin + cameraAimDirection * CONST_RANGE)
 
-	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
-	State:Fire(gun, "Discharge", cameraRay.Origin, aimDirection, gun:GetAttribute("Damage"), Player.Character)
+	local handle = gun:FindFirstChild("Handle")
+	if not handle then return end
+
+	local muzzle = handle:FindFirstChild("Muzzle")
+	if not muzzle or not muzzle:IsA("Attachment") then return end
+
+	local muzzlePosition = muzzle.WorldPosition
+	local muzzleDirection = (aimPoint - muzzlePosition).Unit 
+
+	local muzzleRaycastResult = workspace:Raycast(muzzlePosition, muzzleDirection * CONST_RANGE, RayParams)
+
+	local finalHitPoint = muzzleRaycastResult and muzzleRaycastResult.Position or (muzzlePosition + muzzleDirection * CONST_RANGE)
+
+	State:Fire(gun, "Discharge", muzzlePosition, muzzleDirection, gun:GetAttribute("Damage"), Player.Character)
+
 end
 
 
