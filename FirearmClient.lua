@@ -277,8 +277,69 @@ RayParams.RespectCanCollide = true
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
 
+local Player = game:GetService("Players").LocalPlayer
+local CollectionService = game:GetService("CollectionService")
+local Blacklist = {}
+local AddedBlacklist = {}
+local PermanentBlacklist = {}
+
+local function AddToBlacklist(instance, isPermanent)
+	if not AddedBlacklist[instance] then
+		table.insert(Blacklist, instance)
+		AddedBlacklist[instance] = true
+	end
+	if isPermanent then
+		PermanentBlacklist[instance] = true
+	end
+end
+
+local function RemoveFromBlacklist(instance)
+	if not PermanentBlacklist[instance] then
+		local index = table.find(Blacklist, instance)
+		if index then
+			table.remove(Blacklist, index)
+			AddedBlacklist[instance] = nil
+		end
+	end
+end
+
+local function AddCharacterPartsToBlacklist(character)
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			AddToBlacklist(part, true)
+		end
+	end
+end
+local BlacklistUsed = false
+local lastBlacklistUpdate = 0
+local BLACKLIST_UPDATE_COOLDOWN = 1
+
+local function UpdateBlacklist(gun)
+	local currentTime = tick()
+	if currentTime - lastBlacklistUpdate < BLACKLIST_UPDATE_COOLDOWN then
+		return
+	end
+	lastBlacklistUpdate = currentTime
+
+	if Player.Character then
+		AddCharacterPartsToBlacklist(Player.Character)
+	end
+
+	for _, v in ipairs(game:GetDescendants()) do
+		if v:IsA("Accessory") or CollectionService:HasTag(v, "RayIgnore") then
+			AddToBlacklist(v)
+		elseif v:IsA("BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
+			AddToBlacklist(v)
+		elseif AddedBlacklist[v] and (not v:IsA("Accessory") or CollectionService:HasTag(v, "RayBlock")) then
+			RemoveFromBlacklist(v)
+		end
+	end
+
+	RayParams.FilterDescendantsInstances = Blacklist
+end
 
 local function RealFire(gun)
+
 	if IsHolstered or not CurrentGun or not canFire or not Player.Character or not Player.Character:FindFirstChild("Humanoid") or Player.Character.Humanoid.Health == 0 or IsReloading then
 		return
 	end
@@ -287,33 +348,39 @@ local function RealFire(gun)
 	if not CurrentAmmo or CurrentAmmo <= 0 then
 		return
 	end
+	if BlacklistUsed == false then
+		UpdateBlacklist(gun)
+	end
+	BlacklistUsed = true
 	SetSafeAttribute(gun, "CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
 	local camera = workspace.CurrentCamera
 	local cameraRay = camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-	local cameraAimDirection = cameraRay.Direction
 
-	RayParams.FilterDescendantsInstances = {workspace.CurrentCamera, Player.Character}
-	local cameraRaycastResult = workspace:Raycast(cameraRay.Origin, cameraAimDirection * CONST_RANGE, RayParams)
+	local aimDirection = cameraRay.Direction
+	RayParams.FilterDescendantsInstances = Blacklist
 
-	local aimPoint = cameraRaycastResult and cameraRaycastResult.Position or (cameraRay.Origin + cameraAimDirection * CONST_RANGE)
-
+	local raycastResult = workspace:Raycast(cameraRay.Origin, aimDirection * CONST_RANGE, RayParams)
+	local aimPoint = raycastResult and raycastResult.Position or (cameraRay.Origin + aimDirection * CONST_RANGE)
 	local handle = gun:FindFirstChild("Handle")
-	if not handle then return end
-
-	local muzzle = handle:FindFirstChild("Muzzle")
-	if not muzzle or not muzzle:IsA("Attachment") then return end
+	local muzzle = handle and handle:FindFirstChild("Muzzle")
+	if not handle or not muzzle then
+		warn("Gun handle or muzzle attachment not found")
+		return
+	end
 
 	local muzzlePosition = muzzle.WorldPosition
-	local muzzleDirection = (aimPoint - muzzlePosition).Unit 
 
-	local muzzleRaycastResult = workspace:Raycast(muzzlePosition, muzzleDirection * CONST_RANGE, RayParams)
+	local bulletDirection = (aimPoint - muzzlePosition).Unit
 
-	local finalHitPoint = muzzleRaycastResult and muzzleRaycastResult.Position or (muzzlePosition + muzzleDirection * CONST_RANGE)
+	local bulletRaycastResult = workspace:Raycast(muzzlePosition, bulletDirection * CONST_RANGE, RayParams)
 
-	State:Fire(gun, "Discharge", muzzlePosition, muzzleDirection, gun:GetAttribute("Damage"), Player.Character)
+	local finalHitPosition = bulletRaycastResult and bulletRaycastResult.Position or aimPoint
 
+	local finalDirection = (finalHitPosition - muzzlePosition).Unit
+
+	State:Fire(gun, "Discharge", muzzlePosition, finalDirection, gun:GetAttribute("Damage"), Player.Character)
 end
 
 
