@@ -348,10 +348,7 @@ local function RealFire(gun)
 	if not CurrentAmmo or CurrentAmmo <= 0 then
 		return
 	end
-	if BlacklistUsed == false then
-		UpdateBlacklist(gun)
-	end
-	BlacklistUsed = true
+	UpdateBlacklist(gun)
 	SetSafeAttribute(gun, "CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 
