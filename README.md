@@ -10,7 +10,7 @@
 
 ```lua
 local Settings = {
-	ShowBlood = false, -- Enable Blood?
+	ShowBlood = true, -- Enable Blood?
 
 	ShowMuzzleEffects = true, -- Enable Muzzle effects?
 
@@ -26,17 +26,17 @@ local Settings = {
 
 	DisappearTime = 5, -- Time in (Seconds) until a ejected shell dissapears
 
-	NotifyPlayer = false, -- Notify the player when they failed team check
+	NotifyPlayer = true, -- Notify the player when they failed team check
 
 	AlwaysDamage = false, -- Ignore team check always allows damage
 
-	EnableGuiltySystem = false, -- Enable \ disable class g guilty check
+	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
 
 	EnableBulletHitNotifcation = true, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
 
-	EnableMagStuff = true, -- Enables \ disables mag in and mag transparency 
-	
-	AlternativeSpread = false -- Enables S19 Spread system disable if you pefer mine which you should i dont know why anyone would like s19s
+	EnableMagStuff = false, -- Enables \ disables mag in and mag transparency 
+
+	AlternativeSpread = true -- Enables S19 Spread system disable if you pefer mine which you should i dont know why anyone would like s19s
 }
 ```
 
