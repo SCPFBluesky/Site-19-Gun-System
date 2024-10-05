@@ -50,8 +50,8 @@ RayParams.IgnoreWater = true
 CachedBlacklist = {}
 
 local CachedBlacklistSet = {}
-
-
+local TeamPriorityCache = {}
+local CachedMuzzleEffects = {}
 
 local Settings = {
 	ShowBlood = true, -- Enable Blood?
@@ -76,13 +76,12 @@ local Settings = {
 
 	EnableGuiltySystem = true, -- Enable \ disable class g guilty check
 
-	EnableBulletHitNotifcation = true, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
+	EnableBulletHitNotifcation = false, -- Enables \ disables SCP:CB Hit notifcations: "A bullet hit your head"
 
-	EnableMagStuff = false, -- Enables \ disables mag in and mag transparency 
+	EnableMagStuff = false, -- Enables \ disables mag in and mag transparency
 
-	AlternativeSpread = true -- Enables S19 Spread system disable if you pefer mine which you should i dont know why anyone would like s19s
+	AlternativeSpread = true -- Enables S19 Spread system disable if you prefer mine which you should i don't know why anyone would like s19s
 }
-
 
 local function AddToBlacklist(instance)
 	if not CachedBlacklistSet[instance] then
@@ -90,27 +89,34 @@ local function AddToBlacklist(instance)
 		CachedBlacklistSet[instance] = true
 	end
 end
+
 local lastInitializeTime = 0
-local INITIALIZE_COOLDOWN = 5
-local function InitializeBlacklist()
+local INITIALIZE_COOLDOWN = 10
+local function InitializeBlacklist(player)
 	local currentTime = tick()
 	if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
-		return 
+		return
 	end
 	lastInitializeTime = currentTime
+
 	local workspace = game:GetService("Workspace")
-	local IsA = game.IsA
+
 	for _, v in ipairs(game:GetDescendants()) do
-		if IsA(v, "Accessory") or CollectionService:HasTag(v, "RayIgnore") then
+		if v:IsA("Accessory") or CollectionService:HasTag(v, "RayIgnore") then
 			AddToBlacklist(v)
-		elseif IsA(v, "BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
+		elseif v:IsA("BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
 			AddToBlacklist(v)
 		end
 	end
 end
-
-
-
+local function CacheMuzzleEffects()
+	if next(CachedMuzzleEffects) == nil then
+		local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
+		for _, effect in pairs(effectsSource:GetChildren()) do
+			CachedMuzzleEffects[effect.Name] = effect:Clone()
+		end
+	end
+end
 game.Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function(char)
 		for _, v in pairs(char:GetDescendants()) do
@@ -125,11 +131,18 @@ game.Players.PlayerAdded:Connect(function(player)
 		end)
 	end)
 end)
+
 local function GetTeamPriority(teamName, PlayerWhoFired)
+	if TeamPriorityCache[teamName] then
+		return TeamPriorityCache[teamName]
+	end
+
 	for priorityLevel, teams in pairs(TeamPriorityModule) do
 		for _, team in ipairs(teams) do
 			if team == teamName then
-				return tonumber(priorityLevel:match("%d+"))
+				local priority = tonumber(priorityLevel:match("%d+"))
+				TeamPriorityCache[teamName] = priority
+				return priority
 			end
 		end
 	end
@@ -145,6 +158,7 @@ local function GetTeamPriority(teamName, PlayerWhoFired)
 end
 
 local function TeamCheck(PlayerWhoFired, targetPlr, gun)
+
 	local playerTeam = PlayerWhoFired.Team.Name
 	local targetTeam = targetPlr.Team.Name
 
@@ -241,20 +255,17 @@ State:Connect(function(player, arg)
 		firingTimes[player] = 0
 	end
 end)
-State:Connect(function(gun, arg)
-	
-end)
+
 local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 	if not firingTimes[player] then
 		firingTimes[player] = 0
 	end
+	InitializeBlacklist()
 	if not table.find(CachedBlacklist, char) then
 		table.insert(CachedBlacklist, char)
 	end
-	InitializeBlacklist()
-
 	if player.Character.Humanoid.Health == 0 then return end
-	
+
 	if arg == "Discharge" then
 		local FireSound = gun:FindFirstChild("Handle"):FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
 		FireSound.Parent = gun:FindFirstChild("Handle")
@@ -273,7 +284,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			MIN_BULLET_SPREAD_ANGLE = MIN_BULLET_SPREAD_ANGLE + spreadMultiplier
 			MAX_BULLET_SPREAD_ANGLE = MAX_BULLET_SPREAD_ANGLE + spreadMultiplier
 		end
-		
 		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
 		local spreadDirection = (directionalCF *
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) *
@@ -283,11 +293,19 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
 
 		if raycastResult and raycastResult.Position then
+
 			local Attach = HitEffects.Effects:Clone()
 			Attach.Parent = workspace.Terrain
 			Attach.CFrame = CFrame.new(raycastResult.Position, raycastResult.Position + raycastResult.Normal)
 
 			local hitInstance = raycastResult.Instance
+			local hitModel = hitInstance:FindFirstAncestor("173")
+			if hitModel and hitModel:IsA("Model") then
+				local healthValue = hitModel:FindFirstChild("Health")
+				if healthValue and healthValue:IsA("NumberValue") then
+					healthValue.Value = healthValue.Value - dmg 
+				end
+			end
 			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
 
 			local function GetHitPart(part)
@@ -358,7 +376,6 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 				game.Debris:addItem(Attach, Attach.Smoke.Lifetime.Max+0.1)
 			end
 		end
-
 		if Settings.ShellEjection == true then
 			local ShellPos = (gun:FindFirstChild("Handle").ShellEjectPoint.CFrame *
 				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
@@ -400,34 +417,32 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			spawn(spawner)
 			game.Debris:AddItem(Chamber, 10)
 		end
+		if Settings.ShowMuzzleEffects == true then
+			CacheMuzzleEffects()
 
-
-		local showMuzzleEffects = Settings.ShowMuzzleEffects
-		local effectsCloned = false
-		if showMuzzleEffects and not effectsCloned then
-			local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
-			for _, v in pairs(effectsSource:GetChildren()) do
-				local newEffect = v:Clone()
-				newEffect.Parent = gun:FindFirstChild("Handle").Muzzle
-
-				if newEffect:IsA("PointLight") then
-					newEffect.Enabled = true
-					game.Debris:AddItem(newEffect, 0.1)
-				elseif newEffect:IsA("ParticleEmitter") then
-					newEffect:Emit(20)
-					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
+			if Settings.ShowMuzzleEffects then
+				for _, effect in pairs(CachedMuzzleEffects) do
+					local newEffect = effect:Clone()
+					newEffect.Parent = gun:FindFirstChild("Handle").Muzzle
+					if newEffect:IsA("PointLight") then
+						newEffect.Enabled = true
+						Debris:AddItem(newEffect, 0.1)
+					elseif newEffect:IsA("ParticleEmitter") then
+						newEffect:Emit(20)
+						Debris:AddItem(newEffect, newEffect.Lifetime.Max)
+					end
+				end
+				for i = #CachedBlacklist, 1, -1 do
+					if CachedBlacklist[i] == player.Character then
+						table.remove(CachedBlacklist, i)
+					end
 				end
 			end
-			effectsCloned = true
+
 		end
 
-		for i = #CachedBlacklist, 1, -1 do
-			if CachedBlacklist[i] == player.Character then
-				table.remove(CachedBlacklist, i)
-			end
-		end
 	end
 end
 
-
 State:Connect(Fire)
+CachedBlacklist = {}
