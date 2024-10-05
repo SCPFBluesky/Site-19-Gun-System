@@ -18,6 +18,8 @@ local Atlas = require(game.ReplicatedStorage.Atlas)
 
 local InputService = game:GetService("UserInputService")
 
+local ReloadRemote = Atlas:GetObject("Reload")
+
 local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
 
 local State = BridgeNet.CreateBridge("ToolState")
@@ -224,7 +226,7 @@ function Reload(gun)
 	local success, currentGunSettings = pcall(function()
 		return require(CurrentGun:FindFirstChild("Settings"))
 	end)
-
+	ReloadRemote:FireServer(CurrentGun)
 	if not success or currentGunSettings == nil then return end
 
 	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
