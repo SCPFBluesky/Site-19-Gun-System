@@ -22,7 +22,6 @@ local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
 
 local State = BridgeNet.CreateBridge("ToolState")
 
-local ReloadRemote = Atlas:GetObject("Reload")
 
 local Player = game.Players.LocalPlayer
 
@@ -60,6 +59,8 @@ local GunAmmo = {}
 local OriginalAttributes = {}
 
 local IsSystemChanging = {} 
+
+local raisedTimer = 0.2
 
 local function SetSafeAttribute(gun, attributeName, value)
 	IsSystemChanging[gun] = true 
@@ -138,7 +139,7 @@ local function Init(gun)
 		canFire = true
 
 		if GunAnimations[CurrentGun][1] then
-			GunAnimations[CurrentGun][1]:Play(0.2)
+			GunAnimations[CurrentGun][1]:Play(raisedTimer)
 		end
 
 		if InputService.TouchEnabled then
@@ -203,7 +204,7 @@ local function Lower(gun)
 	if IsHolstered then
 		canFire = false
 		if GunAnimations[CurrentGun][3] then
-			GunAnimations[CurrentGun][3]:Play() --V2\V1 Speed : 0.3 V3: Blank
+			GunAnimations[CurrentGun][3]:Play(raisedTimer) --V2\V1 Speed : 0.3 V3: Blank
 		end
 
 	else
@@ -212,7 +213,7 @@ local function Lower(gun)
 			GunAnimations[CurrentGun][3]:Stop()
 		end
 		if GunAnimations[CurrentGun][1] then
-			GunAnimations[CurrentGun][1]:Play() --V2\V1 Speed : .2 V3: Blank
+			GunAnimations[CurrentGun][1]:Play(raisedTimer) --V2\V1 Speed : .2 V3: Blank
 		end
 
 	end
@@ -232,11 +233,10 @@ function Reload(gun)
 	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
 		return
 	end
-	ReloadRemote:FireServer(CurrentGun)
 	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
 	IsReloading = true
 	canFire = false
-	
+
 	if GunAnimations[CurrentGun][2] then
 		GunAnimations[CurrentGun][2]:Play(.2)
 		task.wait(GunAnimations[CurrentGun][2].Length)
@@ -310,6 +310,7 @@ local function AddCharacterPartsToBlacklist(character)
 		end
 	end
 end
+
 local BlacklistUsed = false
 local lastBlacklistUpdate = 0
 local BLACKLIST_UPDATE_COOLDOWN = 1
@@ -324,7 +325,7 @@ local function UpdateBlacklist(gun)
 	if Player.Character then
 		AddCharacterPartsToBlacklist(Player.Character)
 	end
-
+	table.insert(PermanentBlacklist, gun)
 	for _, v in ipairs(game:GetDescendants()) do
 		if v:IsA("Accessory") or CollectionService:HasTag(v, "RayIgnore") then
 			AddToBlacklist(v)
@@ -336,6 +337,16 @@ local function UpdateBlacklist(gun)
 	end
 
 	RayParams.FilterDescendantsInstances = Blacklist
+end
+
+local function OnCharacterAdded(character)
+	AddCharacterPartsToBlacklist(character)
+end
+
+Player.CharacterAdded:Connect(OnCharacterAdded)
+
+if Player.Character then
+	AddCharacterPartsToBlacklist(Player.Character)
 end
 
 local function RealFire(gun)
@@ -412,38 +423,24 @@ InputService.InputBegan:Connect(function(inputobject, gpe)
 	end
 end)
 
-FireButton.MouseButton1Down:Connect(function()
-	if not CurrentGun or IsHolstered or IsReloading or not canFire then return end
-	RealFire(CurrentGun)
-		
-	FireButton.MouseButton1Up:Connect(function()
-		isButtonDown = false
-	end)
-
-	if CurrentGun:GetAttribute("Automatic") then
-		while isButtonDown and canFire and not IsHolstered do
-			RealFire(CurrentGun)
-			wait(CurrentGun:GetAttribute("RPM"))
-		end
-	end
-end)
 
 
-
-Mouse.Button1Down:Connect(function()
+Mouse.Button1Down:Connect(function(gpe)
+	if gpe then return end
 	isButtonDown = true
 	if CurrentGun and canFire and not IsHolstered then
 		RealFire(CurrentGun)
 		if CurrentGun:GetAttribute("Automatic") then
-			while isButtonDown and canFire and not IsHolstered do
+			while isButtonDown and canFire and not IsHolstered and CurrentGun do
 				RealFire(CurrentGun)
-				wait(CurrentGun:GetAttribute("RPM"))
+				task.wait(CurrentGun:GetAttribute("RPM"))
 			end
 		end
 	end
 end)
 
-Mouse.Button1Up:Connect(function() 
+Mouse.Button1Up:Connect(function(gpe)
+	if gpe then return end
 	isButtonDown = false 
 	State:Fire("Stop")
 end)
