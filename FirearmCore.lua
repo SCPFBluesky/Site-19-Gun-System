@@ -241,10 +241,10 @@ ReloadRemote.OnServerEvent:Connect(function(gun, CurrentGun)
 	local MagOut = CurrentGun.Handle.Primary:FindFirstChild("magOut")
 	local Mag = CurrentGun.Handle:FindFirstChild("Mag")
 	MagOut:Play()
-	--Mag.Transparency = 1
+	Mag.Transparency = 1
 	task.wait(1.27)
 	MagIn:Play()
-	--Mag.Transparency = 0
+	Mag.Transparency = 0
 end)
 
 local firingTimes = {}
