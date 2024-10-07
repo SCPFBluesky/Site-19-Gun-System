@@ -14,9 +14,13 @@
 --!nonstrict
 --!native
 --!divine-intellect
+local PhysicsService = game:GetService("PhysicsService")
+PhysicsService:RegisterCollisionGroup("Accessory")
+PhysicsService:RegisterCollisionGroup("Bullets")
+PhysicsService:CollisionGroupSetCollidable("Accessory", "Bullets", false)
 local Atlas = require(game.ReplicatedStorage.Atlas)
 
-local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
+local BridgeNet = Atlas:LoadLibrary("BridgeNet")
 
 local State = BridgeNet.CreateBridge("ToolState")
 
@@ -41,15 +45,11 @@ local Players = game:GetService("Players")
 local TAU = math.pi * 2
 
 local RNG = Random.new()
-
 local RayParams = RaycastParams.new()
-
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
-
 RayParams.IgnoreWater = true
+RayParams.CollisionGroup = "Bullets"
 CachedBlacklist = {}
-
-local CachedBlacklistSet = {}
 local TeamPriorityCache = {}
 local CachedMuzzleEffects = {}
 
@@ -83,32 +83,44 @@ local Settings = {
 	AlternativeSpread = true -- Enables S19 Spread system disable if you prefer mine which you should i don't know why anyone would like s19s
 }
 
-local function AddToBlacklist(instance)
-	if not CachedBlacklistSet[instance] then
-		table.insert(CachedBlacklist, instance)
-		CachedBlacklistSet[instance] = true
+local function AddToBlacklist(item)
+	if item and not table.find(CachedBlacklist, item) then
+		table.insert(CachedBlacklist, item)
 	end
 end
-
-local lastInitializeTime = 0
-local INITIALIZE_COOLDOWN = 10
-local function InitializeBlacklist(player)
-	local currentTime = tick()
-	if currentTime - lastInitializeTime < INITIALIZE_COOLDOWN then
-		return
+local function RemoveFromBlacklist(item)
+	local index = table.find(CachedBlacklist, item)
+	if index then
+		table.remove(CachedBlacklist, index)
 	end
-	lastInitializeTime = currentTime
-
-	local workspace = game:GetService("Workspace")
-
-	for _, v in ipairs(game:GetDescendants()) do
-		if v:IsA("Accessory") or CollectionService:HasTag(v, "RayIgnore") then
-			AddToBlacklist(v)
-		elseif v:IsA("BasePart") and v.Transparency == 1 and not CollectionService:HasTag(v, "RayBlock") then
-			AddToBlacklist(v)
+end
+for _, item in pairs(game:GetChildren()) do
+	if item:IsA("Accessory") then
+		for _, descendant in pairs(item:GetDescendants()) do
+			if descendant:IsA("BasePart") or descendant:IsA("MeshPart") then
+				PhysicsService:SetPartCollisionGroup(descendant, "Accessory")
+			end
 		end
 	end
 end
+local function InitializeBlacklist()
+	CachedBlacklist = {}
+	local taggedRayIgnoreObjects = CollectionService:GetTagged("RayIgnore")
+	for _, item in ipairs(taggedRayIgnoreObjects) do
+		AddToBlacklist(item)
+	end
+	for _,v in pairs(game:GetDescendants()) do
+		if v:IsA("Accessory") then
+			AddToBlacklist(v)
+		end
+	end
+	for _, part in ipairs(workspace:GetDescendants()) do
+		if part:IsA("BasePart") and part.Transparency == 1 and not CollectionService:HasTag(part, "RayBlock") then
+			AddToBlacklist(part)
+		end
+	end
+end
+
 local function CacheMuzzleEffects()
 	if next(CachedMuzzleEffects) == nil then
 		local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
@@ -117,20 +129,6 @@ local function CacheMuzzleEffects()
 		end
 	end
 end
-game.Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(char)
-		for _, v in pairs(char:GetDescendants()) do
-			if v:IsA("Accessory") then
-				CollectionService:AddTag(v, "RayIgnore")
-			end
-		end
-		char.DescendantAdded:Connect(function(descendant)
-			if descendant:IsA("Accessory") then
-				CollectionService:AddTag(descendant, "RayIgnore")
-			end
-		end)
-	end)
-end)
 
 local function GetTeamPriority(teamName, PlayerWhoFired)
 	if TeamPriorityCache[teamName] then
@@ -156,9 +154,8 @@ local function GetTeamPriority(teamName, PlayerWhoFired)
 	warn("Team is nil, did you specify all teams in the module correctly?")
 	return nil
 end
-
 local function TeamCheck(PlayerWhoFired, targetPlr, gun)
-
+	AddToBlacklist(PlayerWhoFired.Character)
 	local playerTeam = PlayerWhoFired.Team.Name
 	local targetTeam = targetPlr.Team.Name
 
@@ -177,13 +174,13 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 
 	if playerPriority == 1 and targetPriority == 1 then
 		ClearToDamage = false
-		if Settings.NotifyPlayer == true then
+		if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
 		end
 	elseif playerPriority == 2 then
 		if targetPriority == 2 or targetPriority == 3 then
 			ClearToDamage = false
-			if Settings.NotifyPlayer == true then
+			if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 				Notify:FireClient(PlayerWhoFired, "You cannot damage people who also work for the Foundation.")
 			end
 		elseif targetTeam == "Chaos Insurgency" then
@@ -195,7 +192,7 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 				if targetPlr.Character:GetAttribute("Guilty") == true then
 					ClearToDamage = true
 				else
-					if Settings.NotifyPlayer == true then
+					if Settings.NotifyPlayer == true  and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 						Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
 					end
 					ClearToDamage = false
@@ -224,7 +221,7 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
 		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
 		ClearToDamage = false
-		if Settings.NotifyPlayer == true then
+		if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
 		end
 	end
@@ -250,25 +247,25 @@ end)
 local firingTimes = {}
 local MAX_SPREAD_ANGLE = 13
 local SPREAD_INCREMENT = 0.06
+
+
 State:Connect(function(player, arg)
 	if arg == "Stop" then
+		RemoveFromBlacklist(player.Character)
 		firingTimes[player] = 0
 	end
 end)
 
-local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
-	if not firingTimes[player] then
-		firingTimes[player] = 0
-	end
-	InitializeBlacklist()
-	if not table.find(CachedBlacklist, char) then
-		table.insert(CachedBlacklist, char)
-	end
-	if player.Character.Humanoid.Health == 0 then return end
 
+InitializeBlacklist()
+
+local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
+	if gun == nil or player.Character.Humanoid.Health == 0 then return end
+	firingTimes[player] = firingTimes[player] or 0
 	if arg == "Discharge" then
-		local FireSound = gun:FindFirstChild("Handle"):FindFirstChild("FireSound") or gun.Handle.Fire:Clone()
-		FireSound.Parent = gun:FindFirstChild("Handle")
+		local gunHandle = gun:FindFirstChild("Handle")
+		local FireSound = gunHandle:FindFirstChild("FireSound") or gunHandle.Fire:Clone()
+		FireSound.Parent = gunHandle
 		FireSound.TimePosition = 0
 		FireSound:Play()
 		game.Debris:AddItem(FireSound, FireSound.TimeLength) 
@@ -278,27 +275,28 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 		local TAU = math.pi * 2
 
 		local MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE = 0.8, 0.8
-		if Settings.AlternativeSpread == true then
+		if Settings.AlternativeSpread then
 			firingTimes[player] = firingTimes[player] + 1
 			local spreadMultiplier = math.min(firingTimes[player] * SPREAD_INCREMENT, MAX_SPREAD_ANGLE)
-			MIN_BULLET_SPREAD_ANGLE = MIN_BULLET_SPREAD_ANGLE + spreadMultiplier
-			MAX_BULLET_SPREAD_ANGLE = MAX_BULLET_SPREAD_ANGLE + spreadMultiplier
+			MIN_BULLET_SPREAD_ANGLE += spreadMultiplier
+			MAX_BULLET_SPREAD_ANGLE += spreadMultiplier
 		end
+
 		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
 		local spreadDirection = (directionalCF *
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) *
 			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
 		).LookVector
-
+		
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
-
 		if raycastResult and raycastResult.Position then
-
+			if raycastResult.Instance:IsA("Accessory") then RayParams.RespectCanCollide = true end
 			local Attach = HitEffects.Effects:Clone()
 			Attach.Parent = workspace.Terrain
 			Attach.CFrame = CFrame.new(raycastResult.Position, raycastResult.Position + raycastResult.Normal)
 
 			local hitInstance = raycastResult.Instance
+			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
 			local hitModel = hitInstance:FindFirstAncestor("173")
 			if hitModel and hitModel:IsA("Model") then
 				local healthValue = hitModel:FindFirstChild("Health")
@@ -306,62 +304,66 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 					healthValue.Value = healthValue.Value - dmg 
 				end
 			end
-			local hitHumanoid = hitInstance.Parent:FindFirstChild("Humanoid")
-
-			local function GetHitPart(part)
-				if part:IsA("BasePart") then
-					if part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
-						return "Torso"
-					elseif part.Name == "Head" then
-						return "Head"
-					elseif part.Name == "Left Arm" or part.Name == "Right Arm" or part.Name == "Left Leg" or part.Name == "Right Leg" then
-						return part.Name
-					elseif part.Name == "RightUpperArm" or part.Name == "LeftUpperArm" then
-						return "Shoulder"
-					elseif part.Name == "RightLowerArm" or part.Name == "LeftLowerArm" then
-						return "Lower Arm"
-					elseif part.Name == "RightUpperLeg" or part.Name == "LeftUpperLeg" then
-						return "Upper Leg"
-					elseif part.Name == "RightLowerLeg" or part.Name == "LeftLowerLeg" then
-						return "Lower Leg"
-					end
-				end
-				return "Torso"
-			end
-
 			if hitHumanoid then
 				Attach.Hit:Play()
 				local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
 
-				if targetPlr then
-					local hitPart = GetHitPart(hitInstance)
-					local message
-					if hitPart == "Torso" then
-						message = "A bullet hit your Torso."
-					elseif hitPart == "Head" then
-						message = "A bullet hit your Head."
-					elseif hitPart == "Left Arm" then
-						message = "A bullet hit your Left Arm."
-					elseif hitPart == "Right Arm" then
-						message = "A bullet hit your Right Arm."
-					elseif hitPart == "Left Leg" then
-						message = "A bullet hit your Left Leg."
-					elseif hitPart == "Right Leg" then
-						message = "A bullet hit your Right Leg."
-					elseif hitPart == "Shoulder" then
-						message = "A bullet hit your Shoulder."
-					elseif hitPart == "Lower Arm" then
-						message = "A bullet hit your Lower Arm."
-					elseif hitPart == "Upper Leg" then
-						message = "A bullet hit your Upper Leg."
-					elseif hitPart == "Lower Leg" then
-						message = "A bullet hit your Lower Leg."
+				local function GetHitPart(part)
+					if part:IsA("BasePart") then
+						if part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
+							return "Torso"
+						elseif part.Name == "Head" then
+							return "Head"
+						elseif part.Name == "Left Arm" or part.Name == "Right Arm" or part.Name == "Left Leg" or part.Name == "Right Leg" then
+							return part.Name
+						elseif part.Name == "RightUpperArm" or part.Name == "LeftUpperArm" then
+							return "Shoulder"
+						elseif part.Name == "RightLowerArm" or part.Name == "LeftLowerArm" then
+							return "Lower Arm"
+						elseif part.Name == "RightUpperLeg" or part.Name == "LeftUpperLeg" then
+							return "Upper Leg"
+						elseif part.Name == "RightLowerLeg" or part.Name == "LeftLowerLeg" then
+							return "Lower Leg"
+						end
 					end
+					return "Torso"
+				end
 
-					if message and Settings.EnableBulletHitNotifcation == true then
-						Notify:FireClient(targetPlr, message)
+				if hitHumanoid then
+					Attach.Hit:Play()
+					local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
+
+					if targetPlr then
+						local hitPart = GetHitPart(hitInstance)
+						local message
+						if hitPart == "Torso" then
+							message = "A bullet hit your Torso."
+						elseif hitPart == "Head" then
+							message = "A bullet hit your Head."
+						elseif hitPart == "Left Arm" then
+							message = "A bullet hit your Left Arm."
+						elseif hitPart == "Right Arm" then
+							message = "A bullet hit your Right Arm."
+						elseif hitPart == "Left Leg" then
+							message = "A bullet hit your Left Leg."
+						elseif hitPart == "Right Leg" then
+							message = "A bullet hit your Right Leg."
+						elseif hitPart == "Shoulder" then
+							message = "A bullet hit your Shoulder."
+						elseif hitPart == "Lower Arm" then
+							message = "A bullet hit your Lower Arm."
+						elseif hitPart == "Upper Leg" then
+							message = "A bullet hit your Upper Leg."
+						elseif hitPart == "Lower Leg" then
+							message = "A bullet hit your Lower Leg."
+						end
+
+						if message and Settings.EnableBulletHitNotifcation == true then
+							Notify:FireClient(targetPlr, message)
+						end
 					end
 				end
+				
 
 				if not targetPlr or TeamCheck(player, targetPlr, gun) then
 					hitHumanoid:TakeDamage(dmg)
@@ -371,11 +373,12 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 					Attach.Blood:Emit(20)
 				end
 			else
-				Attach.Flash:Emit(20)
-				Attach.Smoke:Emit(20)
-				game.Debris:addItem(Attach, Attach.Smoke.Lifetime.Max+0.1)
+				Attach.Flash:Emit()
+				Attach.Smoke:Emit()
+				game.Debris:AddItem(Attach, Attach.Smoke.Lifetime.Max + 0.1)
 			end
 		end
+
 		if Settings.ShellEjection == true then
 			local ShellPos = (gun:FindFirstChild("Handle").ShellEjectPoint.CFrame *
 				CFrame.new(Settings.BulletShellOffset.X, Settings.BulletShellOffset.Y, Settings.BulletShellOffset.Z)).p
@@ -417,32 +420,23 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			spawn(spawner)
 			game.Debris:AddItem(Chamber, 10)
 		end
-		if Settings.ShowMuzzleEffects == true then
-			CacheMuzzleEffects()
 
-			if Settings.ShowMuzzleEffects then
-				for _, effect in pairs(CachedMuzzleEffects) do
-					local newEffect = effect:Clone()
-					newEffect.Parent = gun:FindFirstChild("Handle").Muzzle
-					if newEffect:IsA("PointLight") then
-						newEffect.Enabled = true
-						Debris:AddItem(newEffect, 0.1)
-					elseif newEffect:IsA("ParticleEmitter") then
-						newEffect:Emit(20)
-						Debris:AddItem(newEffect, newEffect.Lifetime.Max)
-					end
-				end
-				for i = #CachedBlacklist, 1, -1 do
-					if CachedBlacklist[i] == player.Character then
-						table.remove(CachedBlacklist, i)
-					end
+		if Settings.ShowMuzzleEffects then
+			CacheMuzzleEffects()
+			for _, effect in pairs(CachedMuzzleEffects) do
+				local newEffect = effect:Clone()
+				newEffect.Parent = gunHandle.Muzzle
+				if newEffect:IsA("PointLight") then
+					newEffect.Enabled = true
+					game.Debris:AddItem(newEffect, 0.1)
+				elseif newEffect:IsA("ParticleEmitter") then
+					newEffect:Emit(20)
+					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
 				end
 			end
-
 		end
-
 	end
 end
 
+
 State:Connect(Fire)
-CachedBlacklist = {}
