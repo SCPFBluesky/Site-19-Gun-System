@@ -226,7 +226,6 @@ function Reload(gun)
 	local success, currentGunSettings = pcall(function()
 		return require(CurrentGun:FindFirstChild("Settings"))
 	end)
-	ReloadRemote:FireServer(CurrentGun)
 	if not success or currentGunSettings == nil then return end
 
 	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
@@ -235,6 +234,7 @@ function Reload(gun)
 	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
 		return
 	end
+	ReloadRemote:FireServer(CurrentGun)
 	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
 	IsReloading = true
 	canFire = false
@@ -420,7 +420,7 @@ InputService.InputBegan:Connect(function(inputobject, gpe)
 	if not CurrentGun or IsReloading == true then
 		return
 	end
-	if not gpe and inputobject.KeyCode == Enum.KeyCode.R then
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.R  and not IsReloading then
 		Reload(CurrentGun)
 	end
 end)
