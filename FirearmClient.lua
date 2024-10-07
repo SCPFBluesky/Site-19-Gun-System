@@ -428,6 +428,7 @@ end)
 
 
 Mouse.Button1Down:Connect(function(gpe)
+	if CurrentGun == nil then return end
 	if gpe then return end
 	isButtonDown = true
 	if CurrentGun and canFire and not IsHolstered then
@@ -441,7 +442,9 @@ Mouse.Button1Down:Connect(function(gpe)
 	end
 end)
 
+
 Mouse.Button1Up:Connect(function(gpe)
+	if CurrentGun == nil then return end
 	if gpe then return end
 	isButtonDown = false 
 	State:Fire("Stop")
