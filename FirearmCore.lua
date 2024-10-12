@@ -83,17 +83,19 @@ local Settings = {
 	AlternativeSpread = true -- Enables S19 Spread system disable if you prefer mine which you should i don't know why anyone would like s19s
 }
 
-local function AddToBlacklist(item)
+@native function AddToBlacklist(item)
 	if item and not table.find(CachedBlacklist, item) then
 		table.insert(CachedBlacklist, item)
-	end
-end
-local function RemoveFromBlacklist(item)
+	end;
+end;
+
+@native function RemoveFromBlacklist(item)
 	local index = table.find(CachedBlacklist, item)
 	if index then
 		table.remove(CachedBlacklist, index)
-	end
-end
+	end;
+end;
+
 for _, item in pairs(game:GetChildren()) do
 	if item:IsA("Accessory") then
 		for _, descendant in pairs(item:GetDescendants()) do
@@ -103,37 +105,40 @@ for _, item in pairs(game:GetChildren()) do
 		end
 	end
 end
-local function InitializeBlacklist()
+
+@native function InitializeBlacklist()
 	CachedBlacklist = {}
 	local taggedRayIgnoreObjects = CollectionService:GetTagged("RayIgnore")
 	for _, item in ipairs(taggedRayIgnoreObjects) do
 		AddToBlacklist(item)
-	end
+	end;
+
 	for _,v in pairs(game:GetDescendants()) do
 		if v:IsA("Accessory") then
 			AddToBlacklist(v)
-		end
-	end
+		end;
+	end;
+
 	for _, part in ipairs(workspace:GetDescendants()) do
 		if part:IsA("BasePart") and part.Transparency == 1 and not CollectionService:HasTag(part, "RayBlock") then
 			AddToBlacklist(part)
-		end
-	end
-end
+		end;
+	end;
+end;
 
-local function CacheMuzzleEffects()
+@native function CacheMuzzleEffects()
 	if next(CachedMuzzleEffects) == nil then
 		local effectsSource = Settings.ShowV1MuzzleEffects and OldEffect or Muzzle
 		for _, effect in pairs(effectsSource:GetChildren()) do
 			CachedMuzzleEffects[effect.Name] = effect:Clone()
-		end
-	end
-end
+		end;
+	end;
+end;
 
-local function GetTeamPriority(teamName, PlayerWhoFired)
+@native function GetTeamPriority(teamName, PlayerWhoFired)
 	if TeamPriorityCache[teamName] then
 		return TeamPriorityCache[teamName]
-	end
+	end;
 
 	for priorityLevel, teams in pairs(TeamPriorityModule) do
 		for _, team in ipairs(teams) do
@@ -141,9 +146,9 @@ local function GetTeamPriority(teamName, PlayerWhoFired)
 				local priority = tonumber(priorityLevel:match("%d+"))
 				TeamPriorityCache[teamName] = priority
 				return priority
-			end
-		end
-	end
+			end;
+		end;
+	end;
 
 	if not PlayerWhoFired or not PlayerWhoFired:IsA("Player") then
 		warn("Invalid PlayerWhoFired:", PlayerWhoFired)
@@ -154,8 +159,7 @@ local function GetTeamPriority(teamName, PlayerWhoFired)
 	warn("Team is nil, did you specify all teams in the module correctly?")
 	return nil
 end
-local function TeamCheck(PlayerWhoFired, targetPlr, gun)
-	AddToBlacklist(PlayerWhoFired.Character)
+@native function TeamCheck(PlayerWhoFired, targetPlr, gun)
 	local playerTeam = PlayerWhoFired.Team.Name
 	local targetTeam = targetPlr.Team.Name
 
@@ -166,26 +170,26 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 
 	if Settings.AlwaysDamage == true and not (PlayerWhoFired == targetPlr) then
 		return true
-	end
+	end;
 
 	if PlayerWhoFired == targetPlr then
 		return false
-	end
+	end;
 
 	if playerPriority == 1 and targetPriority == 1 then
 		ClearToDamage = false
 		if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
-		end
+		end;
 	elseif playerPriority == 2 then
 		if targetPriority == 2 or targetPriority == 3 then
 			ClearToDamage = false
 			if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 				Notify:FireClient(PlayerWhoFired, "You cannot damage people who also work for the Foundation.")
-			end
+			end;
 		elseif targetTeam == "Chaos Insurgency" then
 			ClearToDamage = true
-		end
+		end;
 
 		if targetTeam == "Class D" then
 			if Settings.EnableGuiltySystem == true then
@@ -196,44 +200,43 @@ local function TeamCheck(PlayerWhoFired, targetPlr, gun)
 						Notify:FireClient(PlayerWhoFired, "You cannot damage Class Ds who did nothing wrong.")
 					end
 					ClearToDamage = false
-				end
+				end;
 			else
 				ClearToDamage = true
-			end
-		end
+			end;
+		end;
 	elseif playerPriority == 3 then
 		ClearToDamage = true
-	end
+	end;
 	if playerPriority == 1 and targetPriority == 2 then
 		ClearToDamage = true
-	end
+	end;
 	if playerPriority == 1 and targetPriority == 3 then 
 		ClearToDamage = true
-	end
+	end;
 	if playerPriority == 2 and targetTeam == "Chaos Insurgency" then
 		ClearToDamage = true
-	end
+	end;
 
 	if playerTeam == "Chaos Insurgency" and (targetPriority == 2 or targetPriority == 3) then
 		ClearToDamage = true
-	end
+	end;
 
 	if (playerTeam == "Chaos Insurgency" and targetTeam == "Class D") or
 		(playerTeam == "Class D" and targetTeam == "Chaos Insurgency") then
 		ClearToDamage = false
 		if Settings.NotifyPlayer == true and not (targetPlr.Character:GetAttribute("Zombie") == true) then
 			Notify:FireClient(PlayerWhoFired, "You cannot damage people on your own team.")
-		end
-	end
+		end;
+	end;
 
 	if targetPlr and targetPlr.Character:GetAttribute("Zombie") == true then
 		ClearToDamage = true
-	end
-
+	end;
 	return ClearToDamage
-end
+end;
 
-ReloadRemote.OnServerEvent:Connect(function(gun, CurrentGun)
+ReloadRemote.OnServerEvent:Connect(@native function(gun, CurrentGun)
 	local MagIn = CurrentGun.Handle.Primary:FindFirstChild("magIn")
 	local MagOut = CurrentGun.Handle.Primary:FindFirstChild("magOut")
 	local Mag = CurrentGun.Handle:FindFirstChild("Mag")
@@ -242,28 +245,30 @@ ReloadRemote.OnServerEvent:Connect(function(gun, CurrentGun)
 	task.wait(1.27)
 	MagIn:Play()
 	Mag.Transparency = 0
-end)
+end);
 
 local firingTimes = {}
 local MAX_SPREAD_ANGLE = 13
 local SPREAD_INCREMENT = 0.06
 
 
-State:Connect(function(player, arg)
+State:Connect(@native function(player, arg)
 	if arg == "Stop" then
-		RemoveFromBlacklist(player.Character)
 		firingTimes[player] = 0
-	end
-end)
+	end;
+end);
 
 
 InitializeBlacklist()
 
-local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
-	if gun == nil or player.Character.Humanoid.Health == 0 then return end
+@native function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
+	AddToBlacklist(char)
+	if gun == nil or player.Character.Humanoid.Health == 0 then RemoveFromBlacklist(char) return end
 	firingTimes[player] = firingTimes[player] or 0
 	if arg == "Discharge" then
+		if not gun then return end
 		local gunHandle = gun:FindFirstChild("Handle")
+		if not gunHandle then return end
 		local FireSound = gunHandle:FindFirstChild("FireSound") or gunHandle.Fire:Clone()
 		FireSound.Parent = gunHandle
 		FireSound.TimePosition = 0
@@ -280,14 +285,14 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 			local spreadMultiplier = math.min(firingTimes[player] * SPREAD_INCREMENT, MAX_SPREAD_ANGLE)
 			MIN_BULLET_SPREAD_ANGLE += spreadMultiplier
 			MAX_BULLET_SPREAD_ANGLE += spreadMultiplier
-		end
+		end;
 
 		local directionalCF = CFrame.new(Vector3.new(), aimDirection)
 		local spreadDirection = (directionalCF *
 			CFrame.fromOrientation(0, 0, RNG:NextNumber(0, TAU)) *
 			CFrame.fromOrientation(math.rad(RNG:NextNumber(MIN_BULLET_SPREAD_ANGLE, MAX_BULLET_SPREAD_ANGLE)), 0, 0)
 		).LookVector
-		
+
 		local raycastResult = workspace:Raycast(aimOrigin, spreadDirection * Range, RayParams)
 		if raycastResult and raycastResult.Position then
 			if raycastResult.Instance:IsA("Accessory") then RayParams.RespectCanCollide = true end
@@ -302,8 +307,9 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 				local healthValue = hitModel:FindFirstChild("Health")
 				if healthValue and healthValue:IsA("NumberValue") then
 					healthValue.Value = healthValue.Value - dmg 
-				end
-			end
+				end;
+			end;
+
 			if hitHumanoid then
 				Attach.Hit:Play()
 				local targetPlr = Players:GetPlayerFromCharacter(hitHumanoid.Parent)
@@ -324,10 +330,10 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 							return "Upper Leg"
 						elseif part.Name == "RightLowerLeg" or part.Name == "LeftLowerLeg" then
 							return "Lower Leg"
-						end
-					end
+						end;
+					end;
 					return "Torso"
-				end
+				end;
 
 				if hitHumanoid then
 					Attach.Hit:Play()
@@ -356,28 +362,28 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 							message = "A bullet hit your Upper Leg."
 						elseif hitPart == "Lower Leg" then
 							message = "A bullet hit your Lower Leg."
-						end
+						end;
 
 						if message and Settings.EnableBulletHitNotifcation == true then
 							Notify:FireClient(targetPlr, message)
-						end
-					end
-				end
-				
+						end;
+					end;
+				end;
+
 
 				if not targetPlr or TeamCheck(player, targetPlr, gun) then
 					hitHumanoid:TakeDamage(dmg)
-				end
+				end;
 
 				if Settings.ShowBlood and targetPlr ~= player then
 					Attach.Blood:Emit(20)
-				end
+				end;
 			else
 				Attach.Flash:Emit()
 				Attach.Smoke:Emit()
 				game.Debris:AddItem(Attach, Attach.Smoke.Lifetime.Max + 0.1)
-			end
-		end
+			end;
+		end;
 
 		if Settings.ShellEjection == true then
 			local ShellPos = (gun:FindFirstChild("Handle").ShellEjectPoint.CFrame *
@@ -416,10 +422,10 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 				shellmesh.Parent = Shell
 
 				game:GetService("Debris"):addItem(Shell, Settings.DisappearTime)
-			end
+			end;
 			spawn(spawner)
 			game.Debris:AddItem(Chamber, 10)
-		end
+		end;
 
 		if Settings.ShowMuzzleEffects then
 			CacheMuzzleEffects()
@@ -432,11 +438,12 @@ local function Fire(player, gun, arg, aimOrigin, aimDirection, dmg, char)
 				elseif newEffect:IsA("ParticleEmitter") then
 					newEffect:Emit(20)
 					game.Debris:AddItem(newEffect, newEffect.Lifetime.Max)
-				end
-			end
-		end
-	end
-end
+				end;
+			end;
+		end;
+		RemoveFromBlacklist(char)
+	end;
+end;
 
 
 State:Connect(Fire)
