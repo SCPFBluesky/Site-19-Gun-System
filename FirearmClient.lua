@@ -18,9 +18,7 @@ local Atlas = require(game.ReplicatedStorage.Atlas)
 
 local InputService = game:GetService("UserInputService")
 
-local ReloadRemote = Atlas:GetObject("Reload")
-
-local BridgeNet = require(game.ReplicatedStorage.BridgeNet)
+local BridgeNet = Atlas:LoadLibrary("BridgeNet")
 
 local State = BridgeNet.CreateBridge("ToolState")
 
@@ -64,21 +62,21 @@ local IsSystemChanging = {}
 
 local raisedTimer = 0.2
 
-local function SetSafeAttribute(gun, attributeName, value)
+@native function SetSafeAttribute(gun, attributeName, value)
 	IsSystemChanging[gun] = true 
 	gun:SetAttribute(attributeName, value)
 	task.wait()
 	IsSystemChanging[gun] = false 
-end
+end;
 
-local function Init(gun)
-	if gun.Parent ~= Player.Backpack then return end
+@native function Init(gun)
+	if gun.Parent ~= Player.Backpack then return end;
 
 	local success, SettingsModule = pcall(function()
 		return require(gun:WaitForChild("Settings"))
 	end)
 
-	if not success or SettingsModule == nil then return end
+	if not success or SettingsModule == nil then return end;
 
 	local equip, unequip
 
@@ -92,7 +90,7 @@ local function Init(gun)
 
 	if not GunAmmo[gun] then
 		GunAmmo[gun] = SettingsModule.Ammo
-	end
+	end;
 
 	IsSystemChanging[gun] = false
 
@@ -105,7 +103,7 @@ local function Init(gun)
 		SetSafeAttribute(gun, "Damage", SettingsModule.Damage)
 	else
 		warn("gun is nil")
-	end
+	end;
 
 
 	GunAnimations[gun] = {}
@@ -118,48 +116,49 @@ local function Init(gun)
 					end
 
 					local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+
 					if not humanoid then
 						humanoid = Player.Character:WaitForChild("Humanoid", 5)
-					end
+					end;
 
 					if humanoid then
 						return humanoid:LoadAnimation(v)
 					else
 						error("Humanoid not found in player's character.")
-					end
-				end)
+					end;
+				end);
 
 				if success and AnimationTrack then
 					table.insert(GunAnimations[gun], AnimationTrack)
 				else
 					warn("Failed to load animation: " .. tostring(v.Name) .. ". Error: " .. tostring(AnimationTrack))
-				end
-			end
-		end
+				end;
+			end;
+		end;
 
 		CurrentGun = gun
 		canFire = true
 
 		if GunAnimations[CurrentGun][1] then
 			GunAnimations[CurrentGun][1]:Play(raisedTimer)
-		end
+		end;
 
 		if InputService.TouchEnabled then
 			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
-		end
+		end;
 
 		gun:SetAttribute("CurrentAmmo", GunAmmo[gun])
-	end)
+	end);
 
 	unequip = gun.Unequipped:Connect(function()
 		if IsReloading then
 			IsReloading = false
 			canFire = true
-		end
+		end;
 
 		if InputService.TouchEnabled then
 			Player.PlayerGui.MobileUI.Enabled = not Player.PlayerGui.MobileUI.Enabled
-		end
+		end;
 
 		GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
 		CurrentGun = nil
@@ -169,8 +168,8 @@ local function Init(gun)
 
 		for _, v in GunAnimations[gun] do
 			v:Stop()
-		end
-	end)
+		end;
+	end);
 
 	gun.AttributeChanged:Connect(function(attribute)
 		if not IsSystemChanging[gun] then
@@ -186,28 +185,28 @@ local function Init(gun)
 				Player:Kick("Attempted to exploit by modifying gun attributes (CanLower).")
 			else
 				Player:Kick("Attempted to exploit by modifying gun attributes.")
-			end
-		end
-	end)
-end
+			end;
+		end;
+	end);
+end;
 
 
-local function Lower(gun)
+@native function Lower(gun)
 
 	if not CurrentGun or CurrentGun.Parent ~= Player.Character or IsReloading == true then
 		return
-	end
+	end;
 
 	if not CurrentGun:GetAttribute("CanLower") then
 		return 
-	end
+	end;
 
 	IsHolstered = not IsHolstered 
 	if IsHolstered then
 		canFire = false
 		if GunAnimations[CurrentGun][3] then
 			GunAnimations[CurrentGun][3]:Play(raisedTimer) --V2\V1 Speed : 0.3 V3: Blank
-		end
+		end;
 
 	else
 		canFire = true
@@ -216,25 +215,27 @@ local function Lower(gun)
 		end
 		if GunAnimations[CurrentGun][1] then
 			GunAnimations[CurrentGun][1]:Play(raisedTimer) --V2\V1 Speed : .2 V3: Blank
-		end
+		end;
 
-	end
-end
+	end;
+end;
 
 
-function Reload(gun)
+@native function Reload(gun)
 	local success, currentGunSettings = pcall(function()
 		return require(CurrentGun:FindFirstChild("Settings"))
-	end)
-	if not success or currentGunSettings == nil then return end
+	end);
+
+	if not success or currentGunSettings == nil then return end;
 
 	if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character or IsReloading == true then
 		return
-	end
+	end;
+
 	if CurrentGun:GetAttribute("CurrentAmmo") == currentGunSettings.Ammo then
 		return
-	end
-	ReloadRemote:FireServer(CurrentGun)
+	end;
+
 	SetSafeAttribute(CurrentGun, "CurrentAmmo", 0)
 	IsReloading = true
 	canFire = false
@@ -245,33 +246,34 @@ function Reload(gun)
 		if not CurrentGun or not CurrentGun.Parent or CurrentGun.Parent ~= Player.Character then
 			IsReloading = false
 			return
-		end
-	end
+		end;
+	end;
 
 	local success, currentGunSettings = pcall(function()
 		return require(CurrentGun:FindFirstChild("Settings"))
-	end)
+	end);
 
-	if not success or currentGunSettings == nil then return end
+	if not success or currentGunSettings == nil then return end;
 
 	if currentGunSettings then
 		GunAmmo[CurrentGun] = currentGunSettings.Ammo
 	else
 		warn("nil")
-	end
+	end;
 
 	if not CurrentGun then
 		IsReloading = false
 		return
-	end
+	end;
 
 	if GunAnimations[CurrentGun] and GunAnimations[CurrentGun][1] then
 		GunAnimations[CurrentGun][1]:Play()
-	end
+	end;
+
 	SetSafeAttribute(CurrentGun, "CurrentAmmo", GunAmmo[CurrentGun])
 	IsReloading = false
 	canFire = true
-end
+end;
 
 local CONST_RANGE = 1000
 local RayParams = RaycastParams.new()
@@ -285,49 +287,52 @@ local Blacklist = {}
 local AddedBlacklist = {}
 local PermanentBlacklist = {}
 
-local function AddToBlacklist(instance, isPermanent)
+@native function AddToBlacklist(instance, isPermanent)
 	if not AddedBlacklist[instance] then
 		table.insert(Blacklist, instance)
 		AddedBlacklist[instance] = true
 	end
 	if isPermanent then
 		PermanentBlacklist[instance] = true
-	end
-end
+	end;
+end;
 
-local function RemoveFromBlacklist(instance)
+@native function RemoveFromBlacklist(instance)
 	if not PermanentBlacklist[instance] then
 		local index = table.find(Blacklist, instance)
 		if index then
 			table.remove(Blacklist, index)
 			AddedBlacklist[instance] = nil
-		end
-	end
-end
+		end;
+	end;
+end;
 
 local function AddCharacterPartsToBlacklist(character)
 	for _, part in ipairs(character:GetDescendants()) do
 		if part:IsA("BasePart") then
 			AddToBlacklist(part, true)
-		end
-	end
-end
+		end;
+	end;
+end;
 
 local BlacklistUsed = false
 local lastBlacklistUpdate = 0
 local BLACKLIST_UPDATE_COOLDOWN = 1
 
-local function UpdateBlacklist(gun)
+@native function UpdateBlacklist(gun)
 	local currentTime = tick()
+
 	if currentTime - lastBlacklistUpdate < BLACKLIST_UPDATE_COOLDOWN then
 		return
-	end
+	end;
+
 	lastBlacklistUpdate = currentTime
 
 	if Player.Character then
 		AddCharacterPartsToBlacklist(Player.Character)
-	end
+	end;
 	table.insert(PermanentBlacklist, gun)
+
 	for _, v in ipairs(game:GetDescendants()) do
 		if v:IsA("Accessory") or CollectionService:HasTag(v, "RayIgnore") then
 			AddToBlacklist(v)
@@ -335,32 +340,33 @@ local function UpdateBlacklist(gun)
 			AddToBlacklist(v)
 		elseif AddedBlacklist[v] and (not v:IsA("Accessory") or CollectionService:HasTag(v, "RayBlock")) then
 			RemoveFromBlacklist(v)
-		end
-	end
+		end;
+	end;
 
 	RayParams.FilterDescendantsInstances = Blacklist
-end
+end;
 
-local function OnCharacterAdded(character)
+@native function OnCharacterAdded(character)
 	AddCharacterPartsToBlacklist(character)
-end
+end;
 
 Player.CharacterAdded:Connect(OnCharacterAdded)
 
 if Player.Character then
 	AddCharacterPartsToBlacklist(Player.Character)
-end
+end;
 
-local function RealFire(gun)
-
+@native function RealFire(gun)
+	if CurrentGun == nil then return end
 	if IsHolstered or not CurrentGun or not canFire or not Player.Character or not Player.Character:FindFirstChild("Humanoid") or Player.Character.Humanoid.Health == 0 or IsReloading then
 		return
-	end
+	end;
 
 	local CurrentAmmo = gun:GetAttribute("CurrentAmmo")
 	if not CurrentAmmo or CurrentAmmo <= 0 then
 		return
-	end
+	end;
+
 	UpdateBlacklist(gun)
 	SetSafeAttribute(gun, "CurrentAmmo", CurrentAmmo - 1)
 	GunAmmo[gun] = gun:GetAttribute("CurrentAmmo")
@@ -378,7 +384,7 @@ local function RealFire(gun)
 	if not handle or not muzzle then
 		warn("Gun handle or muzzle attachment not found")
 		return
-	end
+	end;
 
 	local muzzlePosition = muzzle.WorldPosition
 
@@ -391,39 +397,58 @@ local function RealFire(gun)
 	local finalDirection = (finalHitPosition - muzzlePosition).Unit
 
 	State:Fire(gun, "Discharge", muzzlePosition, finalDirection, gun:GetAttribute("Damage"), Player.Character)
-end
+end;
 
 
 
 
-InputService.InputBegan:Connect(function(inputobject, gpe)
-	if not gpe and inputobject.KeyCode == Enum.KeyCode.E then
-		Lower(CurrentGun)
-	end
-end)
+local UserInputService = game:GetService("UserInputService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local isPromptActive = false
+
+ProximityPromptService.PromptShown:Connect(function(prompt)
+	isPromptActive = true
+end);
+
+ProximityPromptService.PromptHidden:Connect(function(prompt)
+	isPromptActive = false
+end);
+
+UserInputService.InputBegan:Connect(function(inputObject, gameProcessed)
+	if inputObject.KeyCode == Enum.KeyCode.E then
+		if isPromptActive then
+			Lower(CurrentGun)
+		elseif not gameProcessed then
+			Lower(CurrentGun)
+		end;
+	end;
+end);
+
 
 
 ReloadButton.MouseButton1Click:Connect(function()
 	if CurrentGun and not IsReloading then
 		Reload(CurrentGun)
-	end
-end)
+	end;
+end);
 
 
 LowerButton.MouseButton1Click:Connect(function()
 	if CurrentGun then
 		Lower(CurrentGun)
-	end
-end)
+	end;
+end);
 
 InputService.InputBegan:Connect(function(inputobject, gpe)
 	if not CurrentGun or IsReloading == true then
 		return
-	end
-	if not gpe and inputobject.KeyCode == Enum.KeyCode.R  and not IsReloading then
+	end;
+
+	if not gpe and inputobject.KeyCode == Enum.KeyCode.R then
 		Reload(CurrentGun)
-	end
-end)
+	end;
+end);
 
 
 
@@ -436,11 +461,15 @@ Mouse.Button1Down:Connect(function(gpe)
 		if CurrentGun:GetAttribute("Automatic") then
 			while isButtonDown and canFire and not IsHolstered and CurrentGun do
 				RealFire(CurrentGun)
-				task.wait(CurrentGun:GetAttribute("RPM"))
-			end
-		end
-	end
-end)
+				if CurrentGun then  
+					wait(CurrentGun:GetAttribute("RPM"))
+				else
+					break
+				end;
+			end;
+		end;
+	end;
+end);
 
 
 Mouse.Button1Up:Connect(function(gpe)
@@ -448,7 +477,7 @@ Mouse.Button1Up:Connect(function(gpe)
 	if gpe then return end
 	isButtonDown = false 
 	State:Fire("Stop")
-end)
+end);
 
 
 Atlas:BindToTag("Firearm", Init)
